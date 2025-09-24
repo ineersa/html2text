@@ -364,6 +364,11 @@ final class Utils
      */
     public static function reformatTable(array $lines, int $rightMargin): array
     {
+        // Safeguard: handle empty or invalid input gracefully (e.g., empty table)
+        if (0 === \count($lines)) {
+            return [];
+        }
+
         // find the maximum width of the columns
         $firstLineColumns = explode('|', $lines[0]);
         $maxWidth = [];
