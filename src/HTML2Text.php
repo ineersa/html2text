@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text;
 
+use DOMDocument;
+use DOMNode;
 use Ineersa\PhpHtml2text\Elements\AnchorElement;
 use Ineersa\PhpHtml2text\Elements\ListElement;
 use function array_fill;
@@ -22,6 +24,7 @@ use function ltrim;
 use function mb_chr;
 use function mb_substr;
 use function preg_match;
+use function preg_quote;
 use function preg_replace;
 use function round;
 use function str_repeat;
@@ -98,6 +101,11 @@ final class HTML2Text
     public int $acount = 0;
     /** @var list<ListElement> */
     public array $list = [];
+    /**
+     * @var array<int, list<array{name:string,num:int}>>
+     */
+    private array $listStructure = [];
+    private int $liCursor = 0;
     public int $blockquote = 0;
     public bool $pre = false;
     public bool $startpre = false;
@@ -175,6 +183,8 @@ final class HTML2Text
         $this->openQuote = $this->config->openQuote;
         $this->closeQuote = $this->config->closeQuote;
         $this->includeSupSub = $this->config->includeSupSub;
+        $this->listStructure = [];
+        $this->liCursor = 0;
 
         if (null === $out) {
             $this->out = [$this, 'outtextf'];
@@ -189,13 +199,23 @@ final class HTML2Text
         $this->configUnifiable = Constants::UNIFIABLE;
         $this->configUnifiable['nbsp'] = '&nbsp_place_holder;';
     }
+    private const PLACEHOLDER_PREFIX = '__PH2T__';
+    private const PLACEHOLDER_SUFFIX = '__';
+
     public function feed(string $data): void
     {
-        $data = str_replace("</' + 'script>", '</ignore>', $data);
-        $this->buffer .= $data;
-        if ('' === $data) {
-            $this->parseBuffer();
+        if ('' !== $data) {
+            $this->buffer .= str_replace("</' + 'script>", '</ignore>', $data);
+
+            return;
         }
+
+        if ('' === $this->buffer) {
+            return;
+        }
+
+        $this->parseHtml($this->buffer);
+        $this->buffer = '';
     }
     public function handle(string $data): string
     {
@@ -234,258 +254,422 @@ final class HTML2Text
 
         return $outtext;
     }
-    private function parseBuffer(): void
+    private function parseHtml(string $html): void
     {
-        $html = $this->buffer;
-        $this->buffer = '';
-        if ('' === $html) {
+        $trimmed = trim($html);
+        if ('' === $trimmed) {
             return;
         }
 
-        $length = strlen($html);
-        $pos = 0;
-        while ($pos < $length) {
-            $ltPos = strpos($html, '<', $pos);
-            if (false === $ltPos) {
-                $this->emitText(substr($html, $pos));
-                break;
-            }
+        $this->listStructure = $this->analyseListStructure($html);
+        $this->liCursor = 0;
 
-            if ($ltPos > $pos) {
-                $this->emitText(substr($html, $pos, $ltPos - $pos));
-            }
+        $document = new DOMDocument('1.0', 'UTF-8');
+        $previousUseErrors = libxml_use_internal_errors(true);
+        $options = LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING;
+        $document->loadHTML($this->preprocessEntities($html), $options);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousUseErrors);
 
-            $pos = $ltPos;
-            [$tagText, $newPos] = $this->readTag($html, $pos);
-            if (null === $tagText) {
-                $this->emitText(substr($html, $pos));
-                break;
-            }
-
-            $pos = $newPos;
-            if (str_starts_with($tagText, '<!--')) {
-                continue;
-            }
-            if (str_starts_with($tagText, '<![CDATA[')) {
-                $cdata = substr($tagText, 9, -3);
-                if ('' !== $cdata) {
-                    $this->handle_data($cdata);
-                }
-                continue;
-            }
-
-            $inner = substr($tagText, 1, -1);
-            if ('' === $inner) {
-                continue;
-            }
-            $innerTrimmed = trim($inner);
-            if ('' === $innerTrimmed) {
-                continue;
-            }
-
-            $firstChar = $innerTrimmed[0];
-            if ('!' === $firstChar || '?' === $firstChar) {
-                continue;
-            }
-
-            if ('/' === $firstChar) {
-                $tagName = strtolower(trim(substr($innerTrimmed, 1)));
-                if ('' !== $tagName) {
-                    $this->handle_endtag($tagName);
-                }
-                continue;
-            }
-
-            $selfClosing = false;
-            if (str_ends_with($innerTrimmed, '/')) {
-                $selfClosing = true;
-                $innerTrimmed = rtrim(substr($innerTrimmed, 0, -1));
-            }
-
-            $spacePos = strcspn($innerTrimmed, "\t\n\r\f \v");
-            if ($spacePos >= strlen($innerTrimmed)) {
-                $tagName = strtolower($innerTrimmed);
-                $attrText = '';
-            } else {
-                $tagName = strtolower(substr($innerTrimmed, 0, $spacePos));
-                $attrText = substr($innerTrimmed, $spacePos);
-            }
-
-            if ('' === $tagName) {
-                continue;
-            }
-
-            $attrs = $this->parseAttributes($attrText);
-            $this->handle_starttag($tagName, $attrs);
-            if ($selfClosing || $this->isVoidElement($tagName)) {
-                $this->handle_endtag($tagName);
+        if (null !== $document->documentElement) {
+            $this->normaliseDomStructure($document->documentElement);
+            $this->walkDom($document->documentElement);
+        } else {
+            foreach ($document->childNodes as $child) {
+                $this->normaliseDomStructure($child);
+                $this->walkDom($child);
             }
         }
     }
 
-    /**
-     * @return array{0:?string,1:int}
-     */
-    private function readTag(string $html, int $start): array
+    private function normaliseDomStructure(DOMNode $node): void
     {
-        $length = strlen($html);
-        $i = $start + 1;
-        $quote = null;
-        while ($i < $length) {
-            $char = $html[$i];
-            if (null !== $quote) {
-                if ($char === $quote) {
-                    $quote = null;
-                } elseif ('\\' === $char && '"' === $quote && $i + 1 < $length) {
-                    ++$i;
-                }
-            } else {
-                if ('"' === $char || "'" === $char) {
-                    $quote = $char;
-                } elseif ('>' === $char) {
-                    return [substr($html, $start, $i - $start + 1), $i + 1];
-                }
-            }
-            ++$i;
+        if (!$node->hasChildNodes()) {
+            return;
         }
 
-        return [null, $length];
+        $current = $node->firstChild;
+        while (null !== $current) {
+            $next = $current->nextSibling;
+
+            if (XML_ELEMENT_NODE === $current->nodeType) {
+                $name = strtolower($current->nodeName);
+
+                $this->normaliseDomStructure($current);
+            }
+
+            $current = $next;
+        }
     }
 
-    /**
-     * @return list<array{0:string,1:string|null}>
-     */
-    private function parseAttributes(string $attrText): array
+    private function isListContainer(DOMNode $node): bool
     {
-        $attrs = [];
-        $length = strlen($attrText);
-        $i = 0;
-        while ($i < $length) {
-            while ($i < $length && ctype_space($attrText[$i])) {
-                ++$i;
+        return XML_ELEMENT_NODE === $node->nodeType && in_array(strtolower($node->nodeName), ['ul', 'ol'], true);
+    }
+
+    private function findPreviousListItem(DOMNode $node): ?DOMNode
+    {
+        $previous = $node->previousSibling;
+        while (null !== $previous) {
+            if (XML_ELEMENT_NODE === $previous->nodeType) {
+                $previousName = strtolower($previous->nodeName);
+                if ('li' === $previousName) {
+                    return $previous;
+                }
+                if (in_array($previousName, ['ul', 'ol'], true)) {
+                    $candidate = $this->findLastListItem($previous);
+                    if (null !== $candidate) {
+                        return $candidate;
+                    }
+                }
             }
-            if ($i >= $length) {
+            $previous = $previous->previousSibling;
+        }
+
+        $parent = $node->parentNode;
+        while (null !== $parent) {
+            if (null === $parent->parentNode) {
                 break;
             }
-
-            $nameStart = $i;
-            while ($i < $length && preg_match('/[A-Za-z0-9_:-]/', $attrText[$i])) {
-                ++$i;
-            }
-
-            if ($nameStart === $i) {
-                ++$i;
-                continue;
-            }
-
-            $name = strtolower(substr($attrText, $nameStart, $i - $nameStart));
-            while ($i < $length && ctype_space($attrText[$i])) {
-                ++$i;
-            }
-
-            $value = null;
-            if ($i < $length && '=' === $attrText[$i]) {
-                ++$i;
-                while ($i < $length && ctype_space($attrText[$i])) {
-                    ++$i;
-                }
-                if ($i < $length && ('"' === $attrText[$i] || "'" === $attrText[$i])) {
-                    $quote = $attrText[$i];
-                    ++$i;
-                    $valueStart = $i;
-                    while ($i < $length && $attrText[$i] !== $quote) {
-                        if ('\\' === $attrText[$i] && $i + 1 < $length) {
-                            $i += 2;
-                            continue;
+            $previous = $parent->previousSibling;
+            while (null !== $previous) {
+                if (XML_ELEMENT_NODE === $previous->nodeType) {
+                    $previousName = strtolower($previous->nodeName);
+                    if ('li' === $previousName) {
+                        return $previous;
+                    }
+                    if (in_array($previousName, ['ul', 'ol'], true)) {
+                        $candidate = $this->findLastListItem($previous);
+                        if (null !== $candidate) {
+                            return $candidate;
                         }
-                        ++$i;
                     }
-                    $value = substr($attrText, $valueStart, $i - $valueStart);
-                    if ($i < $length && $attrText[$i] === $quote) {
-                        ++$i;
+                }
+                $previous = $previous->previousSibling;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private function findClosestListContainer(DOMNode $node): ?DOMNode
+    {
+        $previous = $node->previousSibling;
+        while (null !== $previous) {
+            if (XML_ELEMENT_NODE === $previous->nodeType && in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
+                return $previous;
+            }
+            $previous = $previous->previousSibling;
+        }
+
+        $parent = $node->parentNode;
+        while (null !== $parent) {
+            if ($this->isListContainer($parent)) {
+                return $parent;
+            }
+            if (null === $parent->parentNode) {
+                break;
+            }
+            $previous = $parent->previousSibling;
+            while (null !== $previous) {
+                if (XML_ELEMENT_NODE === $previous->nodeType && in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
+                    return $previous;
+                }
+                $previous = $previous->previousSibling;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private function findLastListItem(DOMNode $list): ?DOMNode
+    {
+        for ($i = $list->childNodes->length - 1; $i >= 0; --$i) {
+            $child = $list->childNodes->item($i);
+            if (null === $child) {
+                continue;
+            }
+            if (XML_ELEMENT_NODE !== $child->nodeType) {
+                continue;
+            }
+            if ('li' === strtolower($child->nodeName)) {
+                return $child;
+            }
+            if (in_array(strtolower($child->nodeName), ['ul', 'ol'], true)) {
+                $nestedCandidate = $this->findLastListItem($child);
+                if (null !== $nestedCandidate) {
+                    return $nestedCandidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, list<array{name:string,num:int}>>
+     */
+    private function analyseListStructure(string $html): array
+    {
+        $pattern = '/<'
+            .'(\/)?'
+            .'\s*([a-zA-Z0-9]+)'
+            .'([^>]*)'
+            .'>'
+            .'/';
+
+        $stack = [];
+        $structure = [];
+        $liIndex = 0;
+
+        if (!preg_match_all($pattern, $html, $matches, PREG_OFFSET_CAPTURE)) {
+            return $structure;
+        }
+
+        $total = \count($matches[0]);
+        for ($i = 0; $i < $total; ++$i) {
+            $rawTag = $matches[0][$i][0];
+            $isEnd = '' !== $matches[1][$i][0];
+            $tagName = strtolower($matches[2][$i][0]);
+            $attrString = $matches[3][$i][0] ?? '';
+            $selfClosing = !$isEnd && str_ends_with(trim($rawTag), '/>');
+
+            if ($isEnd) {
+                if (in_array($tagName, ['ol', 'ul'], true)) {
+                    for ($j = \count($stack) - 1; $j >= 0; --$j) {
+                        if ($stack[$j]['name'] === $tagName) {
+                            array_splice($stack, $j, 1);
+                            break;
+                        }
                     }
-                } else {
-                    $valueStart = $i;
-                    while ($i < $length && !ctype_space($attrText[$i]) && '>' !== $attrText[$i]) {
-                        ++$i;
+                }
+
+                continue;
+            }
+
+            if ('ol' === $tagName || 'ul' === $tagName) {
+                $numberingStart = 0;
+                if ('ol' === $tagName) {
+                    if (preg_match('/start\s*=\s*(?:"|\'|)(\d+)/i', $attrString, $startMatch)) {
+                        $numberingStart = ((int) $startMatch[1]) - 1;
                     }
-                    $value = substr($attrText, $valueStart, $i - $valueStart);
+                }
+
+                $stack[] = ['name' => $tagName, 'num' => $numberingStart];
+
+                if ($selfClosing) {
+                    array_pop($stack);
+                }
+
+                continue;
+            }
+
+            if ('li' === $tagName) {
+                $currentStack = $stack;
+                if (!$currentStack) {
+                    $currentStack = [['name' => 'ul', 'num' => 0]];
+                }
+                $structure[++$liIndex] = array_map(
+                    static fn (array $level): array => ['name' => $level['name'], 'num' => $level['num']],
+                    $currentStack
+                );
+            }
+        }
+
+        return $structure;
+    }
+
+    private function ensureListStackForCurrentListItem(): void
+    {
+        ++$this->liCursor;
+
+        if (!array_key_exists($this->liCursor, $this->listStructure)) {
+            return;
+        }
+
+        $targetStack = $this->listStructure[$this->liCursor];
+        $this->alignListStack($targetStack);
+    }
+
+    /**
+     * @param list<array{name:string,num:int}> $targetStack
+     */
+    private function alignListStack(array $targetStack): void
+    {
+        $targetDepth = \count($targetStack);
+
+        while (\count($this->list) > $targetDepth) {
+            array_pop($this->list);
+        }
+
+        for ($i = 0; $i < $targetDepth; ++$i) {
+            $target = $targetStack[$i];
+            if (!array_key_exists($i, $this->list) || $this->list[$i]->name !== $target['name']) {
+                while (\count($this->list) > $i) {
+                    array_pop($this->list);
+                }
+                $this->list[] = new ListElement($target['name'], $target['num']);
+            }
+        }
+    }
+
+    private function walkDom(DOMNode $node): void
+    {
+        switch ($node->nodeType) {
+            case XML_TEXT_NODE:
+            case XML_CDATA_SECTION_NODE:
+                if ('' !== $node->nodeValue) {
+                    $this->processTextNode($node->nodeValue);
+                }
+
+                return;
+
+            case XML_ELEMENT_NODE:
+                $tagName = strtolower($node->nodeName);
+                $attrs = [];
+                if ($node->hasAttributes()) {
+                    foreach ($node->attributes as $attribute) {
+                        $attrs[strtolower($attribute->name)] = $this->decodeAttributePlaceholders($attribute->value);
+                    }
+                }
+
+                $this->handle_tag($tagName, $attrs, true);
+                if ($node->hasChildNodes()) {
+                    foreach ($node->childNodes as $child) {
+                        $this->walkDom($child);
+                    }
+                }
+                $this->handle_tag($tagName, [], false);
+
+                return;
+
+            case XML_COMMENT_NODE:
+            case XML_PI_NODE:
+            case XML_DOCUMENT_TYPE_NODE:
+                return;
+
+            default:
+                if ($node->hasChildNodes()) {
+                    foreach ($node->childNodes as $childNode) {
+                        $this->walkDom($childNode);
+                    }
+                }
+
+                return;
+        }
+    }
+
+    private function preprocessEntities(string $html): string
+    {
+        return (string) preg_replace_callback(
+            '/&(#x[0-9A-Fa-f]+|#X[0-9A-Fa-f]+|#[0-9]+|[A-Za-z][A-Za-z0-9]+);/',
+            static function (array $match): string {
+                $entity = $match[1];
+                if ('' === $entity) {
+                    return $match[0];
+                }
+
+                if ('#' === $entity[0]) {
+                    $code = substr($entity, 1);
+
+                    return self::PLACEHOLDER_PREFIX.'CHAR_'.strtolower($code).self::PLACEHOLDER_SUFFIX;
+                }
+
+                return self::PLACEHOLDER_PREFIX.'ENT_'.strtolower($entity).self::PLACEHOLDER_SUFFIX;
+            },
+            $html
+        );
+    }
+
+    private function processTextNode(string $text): void
+    {
+        $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
+        $offset = 0;
+        $length = strlen($text);
+
+        while (preg_match($pattern, $text, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            [$placeholder, $position] = $matches[0];
+            if ($position > $offset) {
+                $segment = substr($text, $offset, $position - $offset);
+                if ('' !== $segment) {
+                    $this->handle_data($this->normalizePlainText($segment));
                 }
             }
 
-            $attrs[] = [$name, $value];
+            $converted = $this->convertPlaceholder($matches[1][0], $matches[2][0]);
+            if ('' !== $converted) {
+                $this->handle_data($converted, true);
+            }
+
+            $offset = $position + strlen($placeholder);
         }
 
-        return $attrs;
+        if ($offset < $length) {
+            $remaining = substr($text, $offset);
+            if ('' !== $remaining) {
+                $this->handle_data($this->normalizePlainText($remaining));
+            }
+        }
     }
 
-    private function isVoidElement(string $tag): bool
+    private function convertPlaceholder(string $type, string $value): string
     {
-        return in_array($tag, [
-            'area',
-            'base',
-            'br',
-            'col',
-            'embed',
-            'hr',
-            'img',
-            'input',
-            'link',
-            'meta',
-            'param',
-            'source',
-            'track',
-            'wbr',
-        ], true);
+        if ('CHAR' === $type) {
+            return $this->charref($value);
+        }
+
+        if ('ENT' === $type) {
+            return $this->entityref($value);
+        }
+
+        return '';
     }
 
-    private function emitText(string $text): void
+    private function decodeAttributePlaceholders(?string $value): ?string
+    {
+        if (null === $value || '' === $value) {
+            return $value;
+        }
+
+        $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
+        $offset = 0;
+        $result = '';
+        $length = strlen($value);
+
+        while (preg_match($pattern, $value, $matches, PREG_OFFSET_CAPTURE, $offset)) {
+            [$placeholder, $position] = $matches[0];
+            if ($position > $offset) {
+                $result .= substr($value, $offset, $position - $offset);
+            }
+
+            $result .= $this->convertPlaceholder($matches[1][0], $matches[2][0]);
+            $offset = $position + strlen($placeholder);
+        }
+
+        if ($offset < $length) {
+            $result .= substr($value, $offset);
+        }
+
+        return $this->normalizePlainText($result);
+    }
+
+    private function normalizePlainText(string $text): string
     {
         if ('' === $text) {
-            return;
+            return $text;
         }
 
-        $length = strlen($text);
-        $pos = 0;
-        while ($pos < $length) {
-            $amp = strpos($text, '&', $pos);
-            if (false === $amp) {
-                $chunk = substr($text, $pos);
-                if ('' !== $chunk) {
-                    $this->handle_data($chunk);
-                }
-                break;
-            }
+        $text = str_replace(["\u{200E}", "\u{200F}"], '', $text);
 
-            if ($amp > $pos) {
-                $chunk = substr($text, $pos, $amp - $pos);
-                if ('' !== $chunk) {
-                    $this->handle_data($chunk);
-                }
-            }
-
-            $semi = strpos($text, ';', $amp);
-            if (false === $semi) {
-                $this->handle_data('&');
-                $pos = $amp + 1;
-                continue;
-            }
-
-            $entity = substr($text, $amp + 1, $semi - $amp - 1);
-            if ('' === $entity) {
-                $this->handle_data('&');
-                $pos = $amp + 1;
-                continue;
-            }
-
-            if ($entity[0] === '#') {
-                $this->handle_charref(substr($entity, 1));
-            } else {
-                $this->handle_entityref($entity);
-            }
-
-            $pos = $semi + 1;
+        $nbsp = html_entity_decode('&nbsp;', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
+        if ('' !== $nbsp) {
+            $placeholder = $this->configUnifiable['nbsp'] ?? '&nbsp_place_holder;';
+            $text = str_replace($nbsp, $placeholder, $text);
         }
+
+        return $text;
     }
     public function handle_charref(string $c): void
     {
@@ -924,14 +1108,14 @@ final class HTML2Text
                                 $aProps = new AnchorElement($a, $this->acount, $this->outcount);
                                 $this->a[] = $aProps;
                             }
-                            $this->o('['.$aProps->count.']');
+                            $this->o(']['.$aProps->count.']');
                         }
                     }
                 }
             }
         }
         if ('img' === $tag && $start && !$this->ignoreImages) {
-            if (array_key_exists('src', $attrs) && null !== $attrs['src']) {
+            if (array_key_exists('src', $attrs) && null !== $attrs['src'] && '' !== $attrs['src']) {
                 if (!$this->imagesToAlt) {
                     $attrs['href'] = $attrs['src'];
                 }
@@ -947,10 +1131,10 @@ final class HTML2Text
                     )
                 ) {
                     $this->o("<img src='".$attrs['src']."' ");
-                    if (array_key_exists('width', $attrs) && null !== $attrs['width']) {
+                    if (array_key_exists('width', $attrs) && null !== $attrs['width'] && '' !== (string) $attrs['width']) {
                         $this->o("width='".$attrs['width']."' ");
                     }
-                    if (array_key_exists('height', $attrs) && null !== $attrs['height']) {
+                    if (array_key_exists('height', $attrs) && null !== $attrs['height'] && '' !== (string) $attrs['height']) {
                         $this->o("height='".$attrs['height']."' ");
                     }
                     if ('' !== $alt) {
@@ -1038,6 +1222,9 @@ final class HTML2Text
             $this->lastWasList = false;
         }
         if ('li' === $tag) {
+            if ($start) {
+                $this->ensureListStackForCurrentListItem();
+            }
             $this->listCodeIndent = '';
             $this->pbr();
             if ($start) {
@@ -1446,10 +1633,13 @@ final class HTML2Text
         $nestCount = 0;
         if (array_key_exists('margin-left', $style)) {
             $value = $style['margin-left'];
-            if (null !== $value && str_ends_with($value, 'px')) {
-                $margin = (int) round((float) substr($value, 0, -2));
-                if ($this->googleListIndent > 0) {
-                    $nestCount = (int) floor($margin / $this->googleListIndent);
+            if (null !== $value) {
+                $trimmed = trim($value);
+                if (preg_match('/^(-?\d+(?:\.\d+)?)(px|pt)?$/i', $trimmed, $matches)) {
+                    $margin = (float) $matches[1];
+                    if ($this->googleListIndent > 0) {
+                        $nestCount = (int) floor(round($margin) / $this->googleListIndent);
+                    }
                 }
             }
         }
@@ -1671,7 +1861,7 @@ final class HTML2Text
         }
         if ('' === $normalized) {
             $normalized = $leadingSlash ? '/' : '';
-        } elseif ($trailingSlash) {
+        } elseif ($trailingSlash && $normalized !== '/') {
             $normalized .= '/';
         }
 

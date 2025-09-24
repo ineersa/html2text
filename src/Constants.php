@@ -10,7 +10,7 @@ final class Constants
     public const TABLE_MARKER_FOR_PAD = 'special_marker_for_table_padding';
 
     /** Detects space-only lines preserved during wrapping. */
-    public const RE_SPACE = '/\s+/';
+    public const RE_SPACE = '/\s\+/';
 
     /** Identifies ordered list markers like "1. ". */
     public const RE_ORDERED_LIST_MATCHER = '/\d+\.\s/';
