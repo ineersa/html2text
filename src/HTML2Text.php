@@ -1726,7 +1726,12 @@ final class HTML2Text
                     $wrapped = $this->wrapParagraph($para, $this->bodyWidth, $indent);
                     $result .= implode("\n", $wrapped);
                     if (str_ends_with($para, '  ')) {
-                        $result .= "  \n";
+                        // Preserve explicit two-space line breaks; avoid duplicating spaces for blockquotes
+                        if (str_starts_with($para, '> ')) {
+                            $result .= "\n"; // two spaces are already in $para
+                        } else {
+                            $result .= "  \n";
+                        }
                         $newlines = 1;
                     } elseif ('' !== $indent) {
                         $result .= "\n";
