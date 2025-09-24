@@ -420,6 +420,16 @@ final class HTML2Text
             .'>'
             .'/';
 
+        // Collect CSS style definitions to emulate Google Docs list style resolution
+        $styleDef = [];
+        if ($this->googleDoc) {
+            if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $styleBlocks)) {
+                foreach ($styleBlocks[1] as $css) {
+                    $styleDef = array_replace($styleDef, Utils::dumbCssParser($css));
+                }
+            }
+        }
+
         $stack = [];
         $structure = [];
         $liIndex = 0;
@@ -450,16 +460,27 @@ final class HTML2Text
             }
 
             if ('ol' === $tagName || 'ul' === $tagName) {
-                // For Google Docs, the actual list type can be encoded in the inline style
-                // e.g. <ol style="list-style-type:disc"> should behave like an unordered list.
+                // For Google Docs, the actual list type can be encoded in inline styles or CSS classes
                 if ($this->googleDoc) {
-                    if (preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
-                        $styleDict = Utils::dumbPropertyDict($styleMatch[2]);
-                        $effective = Utils::googleListStyle($styleDict);
-                        // Only override when the effective style differs
-                        if ('ul' === $effective || 'ol' === $effective) {
-                            $tagName = $effective;
+                    $style = [];
+                    // Merge class-based styles from <style> blocks
+                    if (preg_match('/class\s*=\s*(["\'])(.*?)\1/i', $attrString, $classMatch)) {
+                        $classes = preg_split('/\s+/', trim($classMatch[2])) ?: [];
+                        foreach ($classes as $cssClass) {
+                            if ('' === $cssClass) {
+                                continue;
+                            }
+                            $css = $styleDef['.'.strtolower($cssClass)] ?? [];
+                            $style = array_merge($style, $css);
                         }
+                    }
+                    // Merge inline style if present
+                    if (preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
+                        $style = array_merge($style, Utils::dumbPropertyDict($styleMatch[2]));
+                    }
+                    $effective = Utils::googleListStyle($style);
+                    if ('ul' === $effective || 'ol' === $effective) {
+                        $tagName = $effective;
                     }
                 }
 
