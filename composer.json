@@ -34,9 +34,9 @@
     "sort-packages": true
   },
   "scripts": {
-    "cs-fix": "php8.4 vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php",
-    "phpstan": "php8.4 vendor/bin/phpstan analyse -c phpstan.dist.neon",
-    "tests": "php8.4 vendor/bin/phpunit --colors=always --testdox",
-    "coverage": "php8.4 XDEBUG_MODE=coverage vendor/bin/phpunit --colors=always --testdox --coverage-text --coverage-html coverage/ --coverage-clover coverage/clover.xml"
+    "cs-fix": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php",
+    "phpstan": "vendor/bin/phpstan analyse -c phpstan.dist.neon",
+    "tests": "vendor/bin/phpunit --colors=always --testdox",
+    "coverage": "XDEBUG_MODE=coverage vendor/bin/phpunit --colors=always --testdox --coverage-text --coverage-html coverage/ --coverage-clover coverage/clover.xml"
   }
 }

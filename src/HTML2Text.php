@@ -4,44 +4,16 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text;
 
-use DOMDocument;
-use DOMNode;
 use Ineersa\PhpHtml2text\Elements\AnchorElement;
 use Ineersa\PhpHtml2text\Elements\ListElement;
-use function array_fill;
-use function array_key_exists;
-use function array_key_last;
-use function array_pop;
-use function array_replace;
-use function explode;
-use function hexdec;
-use function implode;
-use function in_array;
-use function strpos;
-use function parse_url;
-use function strrpos;
-use function ltrim;
-use function mb_chr;
-use function mb_substr;
-use function preg_match;
-use function preg_quote;
-use function preg_replace;
-use function round;
-use function str_repeat;
-use function str_replace;
-use function str_starts_with;
-use function str_ends_with;
-use function strcspn;
-use function strlen;
-use function substr;
-use function trim;
-use function wordwrap;
 
 /**
  * html2text: Turn HTML into equivalent Markdown-structured text.
  */
 final class HTML2Text
 {
+    private const PLACEHOLDER_PREFIX = '__PH2T__';
+    private const PLACEHOLDER_SUFFIX = '__';
     public bool $splitNextTd = false;
     public int $tdCount = 0;
     public bool $tableStart = false;
@@ -78,7 +50,7 @@ final class HTML2Text
     public bool $padTables;
     public string $defaultImageAlt;
     /** @var callable|null */
-    public $tagCallback = null;
+    public $tagCallback;
     public string $openQuote;
     public string $closeQuote;
     public bool $includeSupSub;
@@ -97,15 +69,9 @@ final class HTML2Text
     public array $astack = [];
     public ?string $maybeAutomaticLink = null;
     public bool $emptyLink = false;
-    private string $absoluteUrlMatcher;
     public int $acount = 0;
     /** @var list<ListElement> */
     public array $list = [];
-    /**
-     * @var array<int, list<array{name:string,num:int}>>
-     */
-    private array $listStructure = [];
-    private int $liCursor = 0;
     public int $blockquote = 0;
     public bool $pre = false;
     public bool $startpre = false;
@@ -134,11 +100,18 @@ final class HTML2Text
     public string $precedingData = '';
     public string $currentTag = '';
     public ?string $fn = null;
+    private string $absoluteUrlMatcher;
+    /**
+     * @var array<int, list<array{name:string,num:int}>>
+     */
+    private array $listStructure = [];
+    private int $liCursor = 0;
 
     private Config $config;
     /** @var array<string, string> */
     private array $configUnifiable;
     private string $buffer = '';
+
     /**
      * Input parameters:
      *     out: possible custom replacement for self.outtextf (which
@@ -199,13 +172,11 @@ final class HTML2Text
         $this->configUnifiable = Constants::UNIFIABLE;
         $this->configUnifiable['nbsp'] = '&nbsp_place_holder;';
     }
-    private const PLACEHOLDER_PREFIX = '__PH2T__';
-    private const PLACEHOLDER_SUFFIX = '__';
 
     public function feed(string $data): void
     {
         if ('' !== $data) {
-            $this->buffer .= str_replace("</' + 'script>", '</ignore>', $data);
+            $this->buffer .= \str_replace("</' + 'script>", '</ignore>', $data);
 
             return;
         }
@@ -217,6 +188,7 @@ final class HTML2Text
         $this->parseHtml($this->buffer);
         $this->buffer = '';
     }
+
     public function handle(string $data): string
     {
         $this->start = true;
@@ -229,480 +201,36 @@ final class HTML2Text
 
         return $markdown;
     }
+
     public function outtextf(string $s): void
     {
         $this->outtextlist[] = $s;
         if ('' !== $s) {
-            $this->lastWasNL = substr($s, -1) === "\n";
+            $this->lastWasNL = "\n" === \substr($s, -1);
         }
     }
+
     public function finish(): string
     {
         $this->pbr();
         $this->o('', false, 'end');
 
-        $outtext = implode('', $this->outtextlist);
+        $outtext = \implode('', $this->outtextlist);
 
         if ($this->unicodeSnob) {
             $nbsp = html_entity_decode('&nbsp;', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
         } else {
             $nbsp = ' ';
         }
-        $outtext = str_replace('&nbsp_place_holder;', $nbsp, $outtext);
+        $outtext = \str_replace('&nbsp_place_holder;', $nbsp, $outtext);
         // Remove stray single trailing spaces at end of lines (but keep explicit two-space breaks)
-        $outtext = (string) preg_replace('/(?<! ) \n/', "\n", $outtext);
+        $outtext = (string) \preg_replace('/(?<! ) \n/', "\n", $outtext);
 
         $this->outtextlist = [];
 
         return $outtext;
     }
-    private function parseHtml(string $html): void
-    {
-        $trimmed = trim($html);
-        if ('' === $trimmed) {
-            return;
-        }
 
-        $this->listStructure = $this->analyseListStructure($html);
-        $this->liCursor = 0;
-
-        $document = new DOMDocument('1.0', 'UTF-8');
-        $previousUseErrors = libxml_use_internal_errors(true);
-        $options = LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING;
-        $document->loadHTML($this->preprocessEntities($html), $options);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previousUseErrors);
-
-        if (null !== $document->documentElement) {
-            $this->normaliseDomStructure($document->documentElement);
-            $this->walkDom($document->documentElement);
-        } else {
-            foreach ($document->childNodes as $child) {
-                $this->normaliseDomStructure($child);
-                $this->walkDom($child);
-            }
-        }
-    }
-
-    private function normaliseDomStructure(DOMNode $node): void
-    {
-        if (!$node->hasChildNodes()) {
-            return;
-        }
-
-        $current = $node->firstChild;
-        while (null !== $current) {
-            $next = $current->nextSibling;
-
-            if (XML_ELEMENT_NODE === $current->nodeType) {
-                $this->normaliseDomStructure($current);
-            }
-
-            $current = $next;
-        }
-    }
-
-    private function isListContainer(DOMNode $node): bool
-    {
-        return XML_ELEMENT_NODE === $node->nodeType && in_array(strtolower($node->nodeName), ['ul', 'ol'], true);
-    }
-
-    private function findPreviousListItem(DOMNode $node): ?DOMNode
-    {
-        $previous = $node->previousSibling;
-        while (null !== $previous) {
-            if (XML_ELEMENT_NODE === $previous->nodeType) {
-                $previousName = strtolower($previous->nodeName);
-                if ('li' === $previousName) {
-                    return $previous;
-                }
-                if (in_array($previousName, ['ul', 'ol'], true)) {
-                    $candidate = $this->findLastListItem($previous);
-                    if (null !== $candidate) {
-                        return $candidate;
-                    }
-                }
-            }
-            $previous = $previous->previousSibling;
-        }
-
-        $parent = $node->parentNode;
-        while (null !== $parent) {
-            if (null === $parent->parentNode) {
-                break;
-            }
-            $previous = $parent->previousSibling;
-            while (null !== $previous) {
-                if (XML_ELEMENT_NODE === $previous->nodeType) {
-                    $previousName = strtolower($previous->nodeName);
-                    if ('li' === $previousName) {
-                        return $previous;
-                    }
-                    if (in_array($previousName, ['ul', 'ol'], true)) {
-                        $candidate = $this->findLastListItem($previous);
-                        if (null !== $candidate) {
-                            return $candidate;
-                        }
-                    }
-                }
-                $previous = $previous->previousSibling;
-            }
-            $parent = $parent->parentNode;
-        }
-
-        return null;
-    }
-
-    private function findClosestListContainer(DOMNode $node): ?DOMNode
-    {
-        $previous = $node->previousSibling;
-        while (null !== $previous) {
-            if (XML_ELEMENT_NODE === $previous->nodeType && in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
-                return $previous;
-            }
-            $previous = $previous->previousSibling;
-        }
-
-        $parent = $node->parentNode;
-        while (null !== $parent) {
-            if ($this->isListContainer($parent)) {
-                return $parent;
-            }
-            if (null === $parent->parentNode) {
-                break;
-            }
-            $previous = $parent->previousSibling;
-            while (null !== $previous) {
-                if (XML_ELEMENT_NODE === $previous->nodeType && in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
-                    return $previous;
-                }
-                $previous = $previous->previousSibling;
-            }
-            $parent = $parent->parentNode;
-        }
-
-        return null;
-    }
-
-    private function findLastListItem(DOMNode $list): ?DOMNode
-    {
-        for ($i = $list->childNodes->length - 1; $i >= 0; --$i) {
-            $child = $list->childNodes->item($i);
-            if (null === $child) {
-                continue;
-            }
-            if (XML_ELEMENT_NODE !== $child->nodeType) {
-                continue;
-            }
-            if ('li' === strtolower($child->nodeName)) {
-                return $child;
-            }
-            if (in_array(strtolower($child->nodeName), ['ul', 'ol'], true)) {
-                $nestedCandidate = $this->findLastListItem($child);
-                if (null !== $nestedCandidate) {
-                    return $nestedCandidate;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array<int, list<array{name:string,num:int}>>
-     */
-    private function analyseListStructure(string $html): array
-    {
-        $pattern = '/<'
-            .'(\/)?'
-            .'\s*([a-zA-Z0-9]+)'
-            .'([^>]*)'
-            .'>'
-            .'/';
-
-        // Collect CSS style definitions to emulate Google Docs list style resolution
-        $styleDef = [];
-        if ($this->googleDoc) {
-            if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $styleBlocks)) {
-                foreach ($styleBlocks[1] as $css) {
-                    $styleDef = array_replace($styleDef, Utils::dumbCssParser($css));
-                }
-            }
-        }
-
-        $stack = [];
-        $structure = [];
-        $liIndex = 0;
-
-        if (!preg_match_all($pattern, $html, $matches, PREG_OFFSET_CAPTURE)) {
-            return $structure;
-        }
-
-        $total = \count($matches[0]);
-        for ($i = 0; $i < $total; ++$i) {
-            $rawTag = $matches[0][$i][0];
-            $isEnd = '' !== $matches[1][$i][0];
-            $tagName = strtolower($matches[2][$i][0]);
-            $attrString = $matches[3][$i][0] ?? '';
-            $selfClosing = !$isEnd && str_ends_with(trim($rawTag), '/>');
-
-            if ($isEnd) {
-                if (in_array($tagName, ['ol', 'ul'], true)) {
-                    for ($j = \count($stack) - 1; $j >= 0; --$j) {
-                        if ($stack[$j]['name'] === $tagName) {
-                            array_splice($stack, $j, 1);
-                            break;
-                        }
-                    }
-                }
-
-                continue;
-            }
-
-            if ('ol' === $tagName || 'ul' === $tagName) {
-                // For Google Docs, the actual list type can be encoded in inline styles or CSS classes
-                if ($this->googleDoc) {
-                    $style = [];
-                    // Merge class-based styles from <style> blocks
-                    if (preg_match('/class\s*=\s*(["\'])(.*?)\1/i', $attrString, $classMatch)) {
-                        $classes = preg_split('/\s+/', trim($classMatch[2])) ?: [];
-                        foreach ($classes as $cssClass) {
-                            if ('' === $cssClass) {
-                                continue;
-                            }
-                            $css = $styleDef['.'.strtolower($cssClass)] ?? [];
-                            $style = array_merge($style, $css);
-                        }
-                    }
-                    // Merge inline style if present
-                    if (preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
-                        $style = array_merge($style, Utils::dumbPropertyDict($styleMatch[2]));
-                    }
-                    $effective = Utils::googleListStyle($style);
-                    if ('ul' === $effective || 'ol' === $effective) {
-                        $tagName = $effective;
-                    }
-                }
-
-                $numberingStart = 0;
-                if ('ol' === $tagName) {
-                    if (preg_match('/start\s*=\s*(?:"|\'|)(\d+)/i', $attrString, $startMatch)) {
-                        $numberingStart = ((int) $startMatch[1]) - 1;
-                    }
-                }
-
-                $stack[] = ['name' => $tagName, 'num' => $numberingStart];
-
-                if ($selfClosing) {
-                    array_pop($stack);
-                }
-
-                continue;
-            }
-
-            if ('li' === $tagName) {
-                $currentStack = $stack;
-                if (!$currentStack) {
-                    $currentStack = [['name' => 'ul', 'num' => 0]];
-                }
-                $structure[++$liIndex] = array_map(
-                    static fn (array $level): array => ['name' => $level['name'], 'num' => $level['num']],
-                    $currentStack
-                );
-            }
-        }
-
-        return $structure;
-    }
-
-    private function ensureListStackForCurrentListItem(): void
-    {
-        ++$this->liCursor;
-
-        if (!array_key_exists($this->liCursor, $this->listStructure)) {
-            return;
-        }
-
-        $targetStack = $this->listStructure[$this->liCursor];
-        $this->alignListStack($targetStack);
-    }
-
-    /**
-     * @param list<array{name:string,num:int}> $targetStack
-     */
-    private function alignListStack(array $targetStack): void
-    {
-        $targetDepth = \count($targetStack);
-
-        while (\count($this->list) > $targetDepth) {
-            array_pop($this->list);
-        }
-
-        for ($i = 0; $i < $targetDepth; ++$i) {
-            $target = $targetStack[$i];
-            if (!array_key_exists($i, $this->list) || $this->list[$i]->name !== $target['name']) {
-                while (\count($this->list) > $i) {
-                    array_pop($this->list);
-                }
-                $this->list[] = new ListElement($target['name'], $target['num']);
-            }
-        }
-    }
-
-    private function walkDom(DOMNode $node): void
-    {
-        switch ($node->nodeType) {
-            case XML_TEXT_NODE:
-            case XML_CDATA_SECTION_NODE:
-                if ('' !== $node->nodeValue) {
-                    $this->processTextNode($node->nodeValue);
-                }
-
-                return;
-
-            case XML_ELEMENT_NODE:
-                $tagName = strtolower($node->nodeName);
-                $attrs = [];
-                if ($node->hasAttributes()) {
-                    foreach ($node->attributes as $attribute) {
-                        $attrs[strtolower($attribute->name)] = $this->decodeAttributePlaceholders($attribute->value);
-                    }
-                }
-
-                $this->handle_tag($tagName, $attrs, true);
-                if ($node->hasChildNodes()) {
-                    foreach ($node->childNodes as $child) {
-                        $this->walkDom($child);
-                    }
-                }
-                $this->handle_tag($tagName, [], false);
-
-                return;
-
-            case XML_COMMENT_NODE:
-            case XML_PI_NODE:
-            case XML_DOCUMENT_TYPE_NODE:
-                return;
-
-            default:
-                if ($node->hasChildNodes()) {
-                    foreach ($node->childNodes as $childNode) {
-                        $this->walkDom($childNode);
-                    }
-                }
-        }
-    }
-
-    private function preprocessEntities(string $html): string
-    {
-        return (string) preg_replace_callback(
-            '/&(#x[0-9A-Fa-f]+|#X[0-9A-Fa-f]+|#[0-9]+|[A-Za-z][A-Za-z0-9]+);/',
-            static function (array $match): string {
-                $entity = $match[1];
-                if ('' === $entity) {
-                    return $match[0];
-                }
-
-                if ('#' === $entity[0]) {
-                    $code = substr($entity, 1);
-
-                    return self::PLACEHOLDER_PREFIX.'CHAR_'.strtolower($code).self::PLACEHOLDER_SUFFIX;
-                }
-
-                return self::PLACEHOLDER_PREFIX.'ENT_'.strtolower($entity).self::PLACEHOLDER_SUFFIX;
-            },
-            $html
-        );
-    }
-
-    private function processTextNode(string $text): void
-    {
-        $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
-        $offset = 0;
-        $length = strlen($text);
-
-        while (preg_match($pattern, $text, $matches, PREG_OFFSET_CAPTURE, $offset)) {
-            [$placeholder, $position] = $matches[0];
-            if ($position > $offset) {
-                $segment = substr($text, $offset, $position - $offset);
-                if ('' !== $segment) {
-                    $this->handle_data($this->normalizePlainText($segment));
-                }
-            }
-
-            $converted = $this->convertPlaceholder($matches[1][0], $matches[2][0]);
-            if ('' !== $converted) {
-                $this->handle_data($converted, true);
-            }
-
-            $offset = $position + strlen($placeholder);
-        }
-
-        if ($offset < $length) {
-            $remaining = substr($text, $offset);
-            if ('' !== $remaining) {
-                $this->handle_data($this->normalizePlainText($remaining));
-            }
-        }
-    }
-
-    private function convertPlaceholder(string $type, string $value): string
-    {
-        if ('CHAR' === $type) {
-            return $this->charref($value);
-        }
-
-        if ('ENT' === $type) {
-            return $this->entityref($value);
-        }
-
-        return '';
-    }
-
-    private function decodeAttributePlaceholders(?string $value): ?string
-    {
-        if (null === $value || '' === $value) {
-            return $value;
-        }
-
-        $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
-        $offset = 0;
-        $result = '';
-        $length = strlen($value);
-
-        while (preg_match($pattern, $value, $matches, PREG_OFFSET_CAPTURE, $offset)) {
-            [$placeholder, $position] = $matches[0];
-            if ($position > $offset) {
-                $result .= substr($value, $offset, $position - $offset);
-            }
-
-            $result .= $this->convertPlaceholder($matches[1][0], $matches[2][0]);
-            $offset = $position . strlen($placeholder);
-        }
-
-        if ($offset < $length) {
-            $result .= substr($value, $offset);
-        }
-
-        return $this->normalizePlainText($result);
-    }
-
-    private function normalizePlainText(string $text): string
-    {
-        if ('' === $text) {
-            return $text;
-        }
-
-        $text = str_replace(["\u{200E}", "\u{200F}"], '', $text);
-
-        $nbsp = html_entity_decode('&nbsp;', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
-        if ('' !== $nbsp) {
-            $placeholder = $this->configUnifiable['nbsp'] ?? '&nbsp_place_holder;';
-            $text = str_replace($nbsp, $placeholder, $text);
-        }
-
-        return $text;
-    }
     public function handle_charref(string $c): void
     {
         $this->handle_data($this->charref($c), true);
@@ -741,6 +269,7 @@ final class HTML2Text
     {
         $this->handle_tag($tag, [], false);
     }
+
     public function previousIndex(array $attrs): ?int
     {
         /*
@@ -750,16 +279,16 @@ final class HTML2Text
         self.a list. If the set of attributes is not found, returns None
         :rtype: int
         */
-        if (!array_key_exists('href', $attrs) || null === $attrs['href']) {
+        if (!\array_key_exists('href', $attrs) || null === $attrs['href']) {
             return null;
         }
 
         foreach ($this->a as $i => $a) {
-            if (array_key_exists('href', $a->attrs) && $a->attrs['href'] === $attrs['href']) {
-                if (array_key_exists('title', $a->attrs) || array_key_exists('title', $attrs)) {
+            if (\array_key_exists('href', $a->attrs) && $a->attrs['href'] === $attrs['href']) {
+                if (\array_key_exists('title', $a->attrs) || \array_key_exists('title', $attrs)) {
                     if (
-                        array_key_exists('title', $a->attrs)
-                        && array_key_exists('title', $attrs)
+                        \array_key_exists('title', $a->attrs)
+                        && \array_key_exists('title', $attrs)
                         && $a->attrs['title'] === $attrs['title']
                     ) {
                         return $i;
@@ -772,6 +301,7 @@ final class HTML2Text
 
         return null;
     }
+
     public function handle_emphasis(bool $start, array $tagStyle, array $parentStyle): void
     {
         /*
@@ -781,18 +311,18 @@ final class HTML2Text
         $parentEmphasis = Utils::googleTextEmphasis($parentStyle);
 
         // handle Google's text emphasis
-        $strikethrough = in_array('line-through', $tagEmphasis, true) && $this->hideStrikethrough;
+        $strikethrough = \in_array('line-through', $tagEmphasis, true) && $this->hideStrikethrough;
 
         // google and others may mark a font's weight as `bold` or `700`
         $bold = false;
         foreach ($this->boldTextStyleValues as $boldMarker) {
-            $bold = in_array($boldMarker, $tagEmphasis, true) && !in_array($boldMarker, $parentEmphasis, true);
+            $bold = \in_array($boldMarker, $tagEmphasis, true) && !\in_array($boldMarker, $parentEmphasis, true);
             if ($bold) {
                 break;
             }
         }
 
-        $italic = in_array('italic', $tagEmphasis, true) && !in_array('italic', $parentEmphasis, true);
+        $italic = \in_array('italic', $tagEmphasis, true) && !\in_array('italic', $parentEmphasis, true);
         $fixed = (
             Utils::googleFixedWidthFont($tagStyle)
             && !Utils::googleFixedWidthFont($parentStyle)
@@ -861,6 +391,7 @@ final class HTML2Text
             }
         }
     }
+
     public function handle_tag(string $tag, array $attrs, bool $start): void
     {
         $this->currentTag = $tag;
@@ -877,7 +408,7 @@ final class HTML2Text
         if (
             $start
             && null !== $this->maybeAutomaticLink
-            && !in_array($tag, ['p', 'div', 'style', 'dl', 'dt'], true)
+            && !\in_array($tag, ['p', 'div', 'style', 'dl', 'dt'], true)
             && ('img' !== $tag || $this->ignoreImages)
         ) {
             $this->o('[');
@@ -894,14 +425,14 @@ final class HTML2Text
             // that google docs export well formed html.
             if ($start) {
                 if ($this->tagStack) {
-                    $last = $this->tagStack[array_key_last($this->tagStack)];
+                    $last = $this->tagStack[\array_key_last($this->tagStack)];
                     $parentStyle = $last[2];
                 }
                 $tagStyle = Utils::elementStyle($attrs, $this->styleDef, $parentStyle);
                 $this->tagStack[] = [$tag, $attrs, $tagStyle];
             } else {
                 if ($this->tagStack) {
-                    $stackEntry = array_pop($this->tagStack);
+                    $stackEntry = \array_pop($this->tagStack);
                     $attrs = $stackEntry[1];
                     $tagStyle = $stackEntry[2];
                 } else {
@@ -909,7 +440,7 @@ final class HTML2Text
                     $tagStyle = [];
                 }
                 if ($this->tagStack) {
-                    $last = $this->tagStack[array_key_last($this->tagStack)];
+                    $last = $this->tagStack[\array_key_last($this->tagStack)];
                     $parentStyle = $last[2];
                 }
             }
@@ -921,30 +452,32 @@ final class HTML2Text
                 if ($start) {
                     $this->inheader = true;
                     // are inside link name, so only add '#' if it can appear before '['
-                    if ($this->outtextlist && end($this->outtextlist) === '[') {
-                        array_pop($this->outtextlist);
+                    if ($this->outtextlist && '[' === end($this->outtextlist)) {
+                        \array_pop($this->outtextlist);
                         $this->space = false;
-                        $this->o(str_repeat('#', $headerLevel).' ');
+                        $this->o(\str_repeat('#', $headerLevel).' ');
                         $this->o('[');
                     }
                 } else {
                     $this->p_p = 0;  // don't break up link name
                     $this->inheader = false;
+
                     return;  // prevent redundant emphasis marks on headers
                 }
             } else {
                 $this->p();
                 if ($start) {
                     $this->inheader = true;
-                    $this->o(str_repeat('#', $headerLevel).' ');
+                    $this->o(\str_repeat('#', $headerLevel).' ');
                 } else {
                     $this->inheader = false;
                     $this->p();
+
                     return;  // prevent redundant emphasis marks on headers
                 }
             }
         }
-        if (in_array($tag, ['p', 'div'], true)) {
+        if (\in_array($tag, ['p', 'div'], true)) {
             if ($this->googleDoc) {
                 if ($start && Utils::googleHasHeight($tagStyle)) {
                     $this->p();
@@ -973,7 +506,7 @@ final class HTML2Text
             $this->o('* * *');
             $this->p();
         }
-        if (in_array($tag, ['head', 'style', 'script'], true)) {
+        if (\in_array($tag, ['head', 'style', 'script'], true)) {
             if ($start) {
                 ++$this->quiet;
             } else {
@@ -1001,7 +534,7 @@ final class HTML2Text
                 $this->p();
             }
         }
-        if (in_array($tag, ['em', 'i', 'u'], true) && !$this->ignoreEmphasis) {
+        if (\in_array($tag, ['em', 'i', 'u'], true) && !$this->ignoreEmphasis) {
             // Separate with a space if we immediately follow an alphanumeric
             // character, since otherwise Markdown won't render the emphasis
             // marks, and we'll be left with eg 'foo_bar_' visible.
@@ -1010,8 +543,8 @@ final class HTML2Text
             if (
                 $start
                 && '' !== $this->precedingData
-                && !preg_match('/\s/', substr($this->precedingData, -1))
-                && !preg_match('/[\p{P}]/u', substr($this->precedingData, -1))
+                && !\preg_match('/\s/', \substr($this->precedingData, -1))
+                && !\preg_match('/[\p{P}]/u', \substr($this->precedingData, -1))
             ) {
                 $emphasis = ' '.$this->emphasisMark;
                 $this->precedingData .= ' ';
@@ -1024,7 +557,7 @@ final class HTML2Text
                 $this->stressed = true;
             }
         }
-        if (in_array($tag, ['strong', 'b'], true) && !$this->ignoreEmphasis) {
+        if (\in_array($tag, ['strong', 'b'], true) && !$this->ignoreEmphasis) {
             // Separate with space if we immediately follow an * character, since
             // without it, Markdown won't render the resulting *** correctly.
             // (Don't add a space otherwise, though, since there isn't one in the
@@ -1035,8 +568,8 @@ final class HTML2Text
                 // When `self.strong_mark` is set to empty, the next condition
                 // will cause IndexError since it's trying to match the data
                 // with the first character of the `self.strong_mark`.
-                && strlen($this->strongMark) > 0
-                && substr($this->precedingData, -1) === $this->strongMark[0]
+                && '' !== $this->strongMark
+                && \substr($this->precedingData, -1) === $this->strongMark[0]
             ) {
                 $strong = ' '.$this->strongMark;
                 $this->precedingData .= ' ';
@@ -1049,8 +582,8 @@ final class HTML2Text
                 $this->stressed = true;
             }
         }
-        if (in_array($tag, ['del', 'strike', 's'], true)) {
-            if ($start && '' !== $this->precedingData && substr($this->precedingData, -1) === '~') {
+        if (\in_array($tag, ['del', 'strike', 's'], true)) {
+            if ($start && '' !== $this->precedingData && '~' === \substr($this->precedingData, -1)) {
                 $strike = ' ~~';
                 $this->precedingData .= ' ';
             } else {
@@ -1068,7 +601,7 @@ final class HTML2Text
                 $this->handle_emphasis($start, $tagStyle, $parentStyle);
             }
         }
-        if (in_array($tag, ['kbd', 'code', 'tt'], true) && !$this->pre) {
+        if (\in_array($tag, ['kbd', 'code', 'tt'], true) && !$this->pre) {
             $this->o('`');  // TODO: `` `this` ``
             $this->code = !$this->code;
         }
@@ -1076,7 +609,7 @@ final class HTML2Text
             if ($start) {
                 $this->abbrTitle = null;
                 $this->abbrData = '';
-                if (array_key_exists('title', $attrs) && null !== $attrs['title']) {
+                if (\array_key_exists('title', $attrs) && null !== $attrs['title']) {
                     $this->abbrTitle = $attrs['title'];
                 }
             } else {
@@ -1097,16 +630,16 @@ final class HTML2Text
         }
         $linkUrl = function (string $link, string $title = ''): void {
             $url = $this->urlJoin($this->baseurl, $link);
-            $titlePart = '' !== trim($title) ? ' "'.$title.'"' : '';
+            $titlePart = '' !== \trim($title) ? ' "'.$title.'"' : '';
             $this->o(']('.Utils::escapeMd($url).$titlePart.')');
         };
         if ('a' === $tag && !$this->ignoreLinks) {
             if ($start) {
                 if (
-                    array_key_exists('href', $attrs)
+                    \array_key_exists('href', $attrs)
                     && null !== $attrs['href']
-                    && !($this->skipInternalLinks && str_starts_with($attrs['href'], '#'))
-                    && !($this->ignoreMailtoLinks && str_starts_with($attrs['href'], 'mailto:'))
+                    && !($this->skipInternalLinks && \str_starts_with($attrs['href'], '#'))
+                    && !($this->ignoreMailtoLinks && \str_starts_with($attrs['href'], 'mailto:'))
                 ) {
                     if ($this->protectLinks) {
                         $attrs['href'] = '<'.$attrs['href'].'>';
@@ -1119,7 +652,7 @@ final class HTML2Text
                 }
             } else {
                 if ($this->astack) {
-                    $a = array_pop($this->astack);
+                    $a = \array_pop($this->astack);
                     if (null !== $this->maybeAutomaticLink && !$this->emptyLink) {
                         $this->maybeAutomaticLink = null;
                     } elseif (null !== $a) {
@@ -1151,7 +684,7 @@ final class HTML2Text
             }
         }
         if ('img' === $tag && $start && !$this->ignoreImages) {
-            if (array_key_exists('src', $attrs) && null !== $attrs['src'] && '' !== $attrs['src']) {
+            if (\array_key_exists('src', $attrs) && null !== $attrs['src'] && '' !== $attrs['src']) {
                 if (!$this->imagesToAlt) {
                     $attrs['href'] = $attrs['src'];
                 }
@@ -1163,20 +696,21 @@ final class HTML2Text
                     $this->imagesAsHtml
                     || (
                         $this->imagesWithSize
-                        && (array_key_exists('width', $attrs) || array_key_exists('height', $attrs))
+                        && (\array_key_exists('width', $attrs) || \array_key_exists('height', $attrs))
                     )
                 ) {
                     $this->o("<img src='".$attrs['src']."' ");
-                    if (array_key_exists('width', $attrs) && null !== $attrs['width'] && '' !== (string) $attrs['width']) {
+                    if (\array_key_exists('width', $attrs) && null !== $attrs['width'] && '' !== (string) $attrs['width']) {
                         $this->o("width='".$attrs['width']."' ");
                     }
-                    if (array_key_exists('height', $attrs) && null !== $attrs['height'] && '' !== (string) $attrs['height']) {
+                    if (\array_key_exists('height', $attrs) && null !== $attrs['height'] && '' !== (string) $attrs['height']) {
                         $this->o("height='".$attrs['height']."' ");
                     }
                     if ('' !== $alt) {
                         $this->o("alt='".$alt."' ");
                     }
                     $this->o('/>');
+
                     return;
                 }
 
@@ -1186,10 +720,11 @@ final class HTML2Text
                     if (
                         $this->imagesToAlt
                         && Utils::escapeMd($alt) === $href
-                        && 1 === preg_match($this->absoluteUrlMatcher, $href)
+                        && 1 === \preg_match($this->absoluteUrlMatcher, $href)
                     ) {
                         $this->o('<'.Utils::escapeMd($alt).'>');
                         $this->emptyLink = false;
+
                         return;
                     }
                     $this->o('[');
@@ -1232,7 +767,7 @@ final class HTML2Text
         if ('dd' === $tag && !$start) {
             $this->pbr();
         }
-        if (in_array($tag, ['ol', 'ul'], true)) {
+        if (\in_array($tag, ['ol', 'ul'], true)) {
             // Google Docs create sub lists as top level lists
             if (!$this->list && !$this->lastWasList) {
                 $this->p();
@@ -1247,7 +782,7 @@ final class HTML2Text
                 $this->list[] = new ListElement($listStyle, $numberingStart);
             } else {
                 if ($this->list) {
-                    array_pop($this->list);
+                    \array_pop($this->list);
                     if (!$this->googleDoc && !$this->list) {
                         $this->o("\n");
                     }
@@ -1265,12 +800,12 @@ final class HTML2Text
             $this->pbr();
             if ($start) {
                 if ($this->list) {
-                    $li = $this->list[array_key_last($this->list)];
+                    $li = $this->list[\array_key_last($this->list)];
                 } else {
                     $li = new ListElement('ul', 0);
                 }
                 if ($this->googleDoc) {
-                    $this->o(str_repeat('  ', $this->google_nest_count($tagStyle)));
+                    $this->o(\str_repeat('  ', $this->google_nest_count($tagStyle)));
                 } else {
                     $parentList = null;
                     foreach ($this->list as $listElement) {
@@ -1291,7 +826,7 @@ final class HTML2Text
                 $this->start = true;
             }
         }
-        if (in_array($tag, ['table', 'tr', 'td', 'th'], true)) {
+        if (\in_array($tag, ['table', 'tr', 'td', 'th'], true)) {
             if ($this->ignoreTables) {
                 if ('tr' === $tag) {
                     if ($start) {
@@ -1306,7 +841,7 @@ final class HTML2Text
                 if ($start) {
                     $this->soft_br();
                 }
-                if (in_array($tag, ['td', 'th'], true)) {
+                if (\in_array($tag, ['td', 'th'], true)) {
                     if ($start) {
                         $this->o('<'.$tag.">\n\n");
                     } else {
@@ -1336,7 +871,7 @@ final class HTML2Text
                         }
                     }
                 }
-                if (in_array($tag, ['td', 'th'], true) && $start) {
+                if (\in_array($tag, ['td', 'th'], true) && $start) {
                     if ($this->splitNextTd) {
                         $this->o('| ');
                     }
@@ -1353,12 +888,12 @@ final class HTML2Text
                 if ('tr' === $tag && !$start && $this->tableStart) {
                     // Underline table header
                     if ($this->tdCount > 0) {
-                        $this->o(implode('|', array_fill(0, $this->tdCount, '---')));
+                        $this->o(\implode('|', \array_fill(0, $this->tdCount, '---')));
                     }
                     $this->soft_br();
                     $this->tableStart = false;
                 }
-                if (in_array($tag, ['td', 'th'], true) && $start) {
+                if (\in_array($tag, ['td', 'th'], true) && $start) {
                     ++$this->tdCount;
                 }
             }
@@ -1379,7 +914,7 @@ final class HTML2Text
             }
             $this->p();
         }
-        if (in_array($tag, ['sup', 'sub'], true) && $this->includeSupSub) {
+        if (\in_array($tag, ['sup', 'sub'], true) && $this->includeSupSub) {
             if ($start) {
                 $this->o('<'.$tag.'>');
             } else {
@@ -1387,6 +922,7 @@ final class HTML2Text
             }
         }
     }
+
     public function pbr(): void
     {
         /* "Pretty print has a line break" */
@@ -1407,6 +943,7 @@ final class HTML2Text
         $this->pbr();
         $this->brToggle = '  ';
     }
+
     public function o(string $data, bool $puredata = false, bool|string $force = false): void
     {
         /*
@@ -1423,7 +960,7 @@ final class HTML2Text
         if ($this->googleDoc) {
             // prevent white space immediately after 'begin emphasis'
             // marks ('**' and '_')
-            $lstrippedData = ltrim($data);
+            $lstrippedData = \ltrim($data);
             if ($this->dropWhiteSpace && !($this->pre || $this->code)) {
                 $data = $lstrippedData;
             }
@@ -1436,10 +973,10 @@ final class HTML2Text
             // This is a very dangerous call ... it could mess up
             // all handling of &nbsp; when not handled properly
             // (see entityref)
-            $data = (string) preg_replace('/\s+/', ' ', $data);
-            if ('' !== $data && $data[0] === ' ') {
+            $data = (string) \preg_replace('/\s+/', ' ', $data);
+            if ('' !== $data && ' ' === $data[0]) {
                 $this->space = true;
-                $data = substr($data, 1);
+                $data = \substr($data, 1);
             }
         }
         if ('' === $data && false === $force) {
@@ -1448,7 +985,7 @@ final class HTML2Text
 
         if ($this->startpre) {
             // self.out(" :") #TODO: not output when already one there
-            if (!str_starts_with($data, "\n") && !str_starts_with($data, "\r\n")) {
+            if (!\str_starts_with($data, "\n") && !\str_starts_with($data, "\r\n")) {
                 // <pre>stuff...
                 $data = "\n".$data;
             }
@@ -1458,8 +995,8 @@ final class HTML2Text
             }
         }
 
-        $bq = str_repeat('>', $this->blockquote);
-        if (!((true === $force || 'end' === $force) && '' !== $data && $data[0] === '>') && $this->blockquote) {
+        $bq = \str_repeat('>', $this->blockquote);
+        if (!((true === $force || 'end' === $force) && '' !== $data && '>' === $data[0]) && $this->blockquote) {
             if ('' !== $bq) {
                 $bq .= ' ';
             }
@@ -1474,7 +1011,7 @@ final class HTML2Text
                 $bq .= '    ';
             }
 
-            $data = str_replace("\n", "\n".$bq, $data);
+            $data = \str_replace("\n", "\n".$bq, $data);
             $this->preIndent = $bq;
         }
 
@@ -1485,7 +1022,7 @@ final class HTML2Text
                 $this->p_p = 0;
             } elseif ($this->list) {
                 // use existing initial indentation
-                $data = ltrim($data, "\n".$this->preIndent);
+                $data = \ltrim($data, "\n".$this->preIndent);
             }
         }
 
@@ -1503,7 +1040,7 @@ final class HTML2Text
         }
 
         if ($this->p_p) {
-            ($this->out)(str_repeat($this->brToggle."\n".$bq, $this->p_p));
+            ($this->out)(\str_repeat($this->brToggle."\n".$bq, $this->p_p));
             $this->space = false;
             $this->brToggle = '';
         }
@@ -1517,7 +1054,7 @@ final class HTML2Text
 
         if (
             $this->a
-            && (($this->p_p === 2 && $this->linksEachParagraph) || 'end' === $force)
+            && ((2 === $this->p_p && $this->linksEachParagraph) || 'end' === $force)
         ) {
             if ('end' === $force) {
                 ($this->out)("\n");
@@ -1533,7 +1070,7 @@ final class HTML2Text
                         .$this->urlJoin($this->baseurl, $link->attrs['href'] ?? '')
                     );
                     if (
-                        array_key_exists('title', $link->attrs)
+                        \array_key_exists('title', $link->attrs)
                         && null !== $link->attrs['title']
                     ) {
                         ($this->out)(' ('.$link->attrs['title'].')');
@@ -1562,6 +1099,7 @@ final class HTML2Text
         ($this->out)($data);
         ++$this->outcount;
     }
+
     public function handle_data(string $data, bool $entityChar = false): void
     {
         if ('' === $data) {
@@ -1571,15 +1109,15 @@ final class HTML2Text
         }
 
         if ($this->stressed) {
-            $data = trim($data);
+            $data = \trim($data);
             $this->stressed = false;
             $this->precedingStressed = true;
         } elseif ($this->precedingStressed) {
-            $firstChar = mb_substr($data, 0, 1);
+            $firstChar = \mb_substr($data, 0, 1);
             if (
-                1 === preg_match('/[^\[\](){}\s.!?]/u', $firstChar)
+                1 === \preg_match('/[^\[\](){}\s.!?]/u', $firstChar)
                 && 0 === Utils::hn($this->currentTag)
-                && !in_array($this->currentTag, ['a', 'code', 'pre'], true)
+                && !\in_array($this->currentTag, ['a', 'code', 'pre'], true)
             ) {
                 // should match a letter or common punctuation
                 $data = ' '.$data;
@@ -1588,18 +1126,19 @@ final class HTML2Text
         }
 
         if ($this->style) {
-            $this->styleDef = array_replace($this->styleDef, Utils::dumbCssParser($data));
+            $this->styleDef = \array_replace($this->styleDef, Utils::dumbCssParser($data));
         }
 
         if (null !== $this->maybeAutomaticLink) {
             $href = $this->maybeAutomaticLink;
             if (
                 $href === $data
-                && 1 === preg_match($this->absoluteUrlMatcher, $href)
+                && 1 === \preg_match($this->absoluteUrlMatcher, $href)
                 && $this->useAutomaticLinks
             ) {
                 $this->o('<'.$data.'>');
                 $this->emptyLink = false;
+
                 return;
             }
             $this->space = false;
@@ -1615,6 +1154,7 @@ final class HTML2Text
         $this->emptyLink = false;
         $this->o($data, true);
     }
+
     public function charref(string $name): string
     {
         if ('' === $name) {
@@ -1622,7 +1162,7 @@ final class HTML2Text
         }
 
         if ('x' === $name[0] || 'X' === $name[0]) {
-            $c = (int) hexdec(substr($name, 1));
+            $c = (int) \hexdec(\substr($name, 1));
         } else {
             $c = (int) $name;
         }
@@ -1635,16 +1175,17 @@ final class HTML2Text
 
         if (!$this->unicodeSnob) {
             $unifiable = Utils::unifiableN();
-            if (array_key_exists($c, $unifiable)) {
+            if (\array_key_exists($c, $unifiable)) {
                 return $unifiable[$c];
             }
         }
 
-        return mb_chr($c, 'UTF-8');
+        return \mb_chr($c, 'UTF-8');
     }
+
     public function entityref(string $c): string
     {
-        if (!$this->unicodeSnob && array_key_exists($c, $this->configUnifiable)) {
+        if (!$this->unicodeSnob && \array_key_exists($c, $this->configUnifiable)) {
             return $this->configUnifiable[$c];
         }
         $decoded = html_entity_decode('&'.$c.';', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
@@ -1658,6 +1199,7 @@ final class HTML2Text
 
         return $decoded;
     }
+
     public function google_nest_count(array $style): int
     {
         /*
@@ -1668,14 +1210,14 @@ final class HTML2Text
         :rtype: int
         */
         $nestCount = 0;
-        if (array_key_exists('margin-left', $style)) {
+        if (\array_key_exists('margin-left', $style)) {
             $value = $style['margin-left'];
             if (null !== $value) {
-                $trimmed = trim($value);
-                if (preg_match('/^(-?\d+(?:\.\d+)?)(px|pt)?$/i', $trimmed, $matches)) {
+                $trimmed = \trim($value);
+                if (\preg_match('/^(-?\d+(?:\.\d+)?)(px|pt)?$/i', $trimmed, $matches)) {
                     $margin = (float) $matches[1];
                     if ($this->googleListIndent > 0) {
-                        $nestCount = (int) floor(round($margin) / $this->googleListIndent);
+                        $nestCount = (int) floor(\round($margin) / $this->googleListIndent);
                     }
                 }
             }
@@ -1683,6 +1225,7 @@ final class HTML2Text
 
         return $nestCount;
     }
+
     public function optwrap(string $text): string
     {
         /*
@@ -1705,10 +1248,10 @@ final class HTML2Text
             $this->inlineLinks = false;
         }
         $startCode = false;
-        foreach (explode("\n", $text) as $para) {
+        foreach (\explode("\n", $text) as $para) {
             // If the text is between tri-backquote pairs, it's a code block;
             // don't wrap
-            if ($this->backquoteCodeStyle && str_starts_with(ltrim($para), '```')) {
+            if ($this->backquoteCodeStyle && \str_starts_with(\ltrim($para), '```')) {
                 $startCode = !$startCode;
             }
             if ($startCode) {
@@ -1717,18 +1260,18 @@ final class HTML2Text
             } elseif ('' !== $para) {
                 if (!Utils::skipwrap($para, $this->wrapLinks, $this->wrapListItems, $this->wrapTables)) {
                     $indent = '';
-                    if (str_starts_with($para, '  '.$this->ulItemMark)) {
+                    if (\str_starts_with($para, '  '.$this->ulItemMark)) {
                         // list item continuation: add a double indent to the
                         // new lines
                         $indent = '    ';
-                    } elseif (str_starts_with($para, '> ')) {
+                    } elseif (\str_starts_with($para, '> ')) {
                         // blockquote continuation: add the greater than symbol
                         // to the new lines
                         $indent = '> ';
                     }
                     $wrapped = $this->wrapParagraph($para, $this->bodyWidth, $indent);
-                    $result .= implode("\n", $wrapped);
-                    if (str_ends_with($para, '  ')) {
+                    $result .= \implode("\n", $wrapped);
+                    if (\str_ends_with($para, '  ')) {
                         // Preserve explicit two-space line breaks without duplicating spaces
                         // The trailing two spaces are already part of $para
                         $result .= "\n";
@@ -1745,7 +1288,7 @@ final class HTML2Text
                     // Be aware that obvious replacement of this with
                     // line.isspace()
                     // DOES NOT work! Explanations are welcome.
-                    if (1 !== preg_match(Constants::RE_SPACE, $para)) {
+                    if (1 !== \preg_match(Constants::RE_SPACE, $para)) {
                         $result .= $para."\n";
                         $newlines = 1;
                     }
@@ -1760,6 +1303,455 @@ final class HTML2Text
 
         return $result;
     }
+
+    private function parseHtml(string $html): void
+    {
+        $trimmed = \trim($html);
+        if ('' === $trimmed) {
+            return;
+        }
+
+        $this->listStructure = $this->analyseListStructure($html);
+        $this->liCursor = 0;
+
+        $document = new \DOMDocument('1.0', 'UTF-8');
+        $previousUseErrors = libxml_use_internal_errors(true);
+        $options = \LIBXML_HTML_NODEFDTD | \LIBXML_NOERROR | \LIBXML_NOWARNING;
+        $document->loadHTML($this->preprocessEntities($html), $options);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousUseErrors);
+
+        if (null !== $document->documentElement) {
+            $this->normaliseDomStructure($document->documentElement);
+            $this->walkDom($document->documentElement);
+        } else {
+            foreach ($document->childNodes as $child) {
+                $this->normaliseDomStructure($child);
+                $this->walkDom($child);
+            }
+        }
+    }
+
+    private function normaliseDomStructure(\DOMNode $node): void
+    {
+        if (!$node->hasChildNodes()) {
+            return;
+        }
+
+        $current = $node->firstChild;
+        while (null !== $current) {
+            $next = $current->nextSibling;
+
+            if (\XML_ELEMENT_NODE === $current->nodeType) {
+                $this->normaliseDomStructure($current);
+            }
+
+            $current = $next;
+        }
+    }
+
+    private function isListContainer(\DOMNode $node): bool
+    {
+        return \XML_ELEMENT_NODE === $node->nodeType && \in_array(strtolower($node->nodeName), ['ul', 'ol'], true);
+    }
+
+    private function findPreviousListItem(\DOMNode $node): ?\DOMNode
+    {
+        $previous = $node->previousSibling;
+        while (null !== $previous) {
+            if (\XML_ELEMENT_NODE === $previous->nodeType) {
+                $previousName = strtolower($previous->nodeName);
+                if ('li' === $previousName) {
+                    return $previous;
+                }
+                if (\in_array($previousName, ['ul', 'ol'], true)) {
+                    $candidate = $this->findLastListItem($previous);
+                    if (null !== $candidate) {
+                        return $candidate;
+                    }
+                }
+            }
+            $previous = $previous->previousSibling;
+        }
+
+        $parent = $node->parentNode;
+        while (null !== $parent) {
+            if (null === $parent->parentNode) {
+                break;
+            }
+            $previous = $parent->previousSibling;
+            while (null !== $previous) {
+                if (\XML_ELEMENT_NODE === $previous->nodeType) {
+                    $previousName = strtolower($previous->nodeName);
+                    if ('li' === $previousName) {
+                        return $previous;
+                    }
+                    if (\in_array($previousName, ['ul', 'ol'], true)) {
+                        $candidate = $this->findLastListItem($previous);
+                        if (null !== $candidate) {
+                            return $candidate;
+                        }
+                    }
+                }
+                $previous = $previous->previousSibling;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private function findClosestListContainer(\DOMNode $node): ?\DOMNode
+    {
+        $previous = $node->previousSibling;
+        while (null !== $previous) {
+            if (\XML_ELEMENT_NODE === $previous->nodeType && \in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
+                return $previous;
+            }
+            $previous = $previous->previousSibling;
+        }
+
+        $parent = $node->parentNode;
+        while (null !== $parent) {
+            if ($this->isListContainer($parent)) {
+                return $parent;
+            }
+            if (null === $parent->parentNode) {
+                break;
+            }
+            $previous = $parent->previousSibling;
+            while (null !== $previous) {
+                if (\XML_ELEMENT_NODE === $previous->nodeType && \in_array(strtolower($previous->nodeName), ['ul', 'ol'], true)) {
+                    return $previous;
+                }
+                $previous = $previous->previousSibling;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    private function findLastListItem(\DOMNode $list): ?\DOMNode
+    {
+        for ($i = $list->childNodes->length - 1; $i >= 0; --$i) {
+            $child = $list->childNodes->item($i);
+            if (null === $child) {
+                continue;
+            }
+            if (\XML_ELEMENT_NODE !== $child->nodeType) {
+                continue;
+            }
+            if ('li' === strtolower($child->nodeName)) {
+                return $child;
+            }
+            if (\in_array(strtolower($child->nodeName), ['ul', 'ol'], true)) {
+                $nestedCandidate = $this->findLastListItem($child);
+                if (null !== $nestedCandidate) {
+                    return $nestedCandidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, list<array{name:string,num:int}>>
+     */
+    private function analyseListStructure(string $html): array
+    {
+        $pattern = '/<'
+            .'(\/)?'
+            .'\s*([a-zA-Z0-9]+)'
+            .'([^>]*)'
+            .'>'
+            .'/';
+
+        // Collect CSS style definitions to emulate Google Docs list style resolution
+        $styleDef = [];
+        if ($this->googleDoc) {
+            if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $styleBlocks)) {
+                foreach ($styleBlocks[1] as $css) {
+                    $styleDef = \array_replace($styleDef, Utils::dumbCssParser($css));
+                }
+            }
+        }
+
+        $stack = [];
+        $structure = [];
+        $liIndex = 0;
+
+        if (!preg_match_all($pattern, $html, $matches, \PREG_OFFSET_CAPTURE)) {
+            return $structure;
+        }
+
+        $total = \count($matches[0]);
+        for ($i = 0; $i < $total; ++$i) {
+            $rawTag = $matches[0][$i][0];
+            $isEnd = '' !== $matches[1][$i][0];
+            $tagName = strtolower($matches[2][$i][0]);
+            $attrString = $matches[3][$i][0] ?? '';
+            $selfClosing = !$isEnd && \str_ends_with(\trim($rawTag), '/>');
+
+            if ($isEnd) {
+                if (\in_array($tagName, ['ol', 'ul'], true)) {
+                    for ($j = \count($stack) - 1; $j >= 0; --$j) {
+                        if ($stack[$j]['name'] === $tagName) {
+                            array_splice($stack, $j, 1);
+                            break;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if ('ol' === $tagName || 'ul' === $tagName) {
+                // For Google Docs, the actual list type can be encoded in inline styles or CSS classes
+                if ($this->googleDoc) {
+                    $style = [];
+                    // Merge class-based styles from <style> blocks
+                    if (\preg_match('/class\s*=\s*(["\'])(.*?)\1/i', $attrString, $classMatch)) {
+                        $classes = preg_split('/\s+/', \trim($classMatch[2])) ?: [];
+                        foreach ($classes as $cssClass) {
+                            if ('' === $cssClass) {
+                                continue;
+                            }
+                            $css = $styleDef['.'.strtolower($cssClass)] ?? [];
+                            $style = array_merge($style, $css);
+                        }
+                    }
+                    // Merge inline style if present
+                    if (\preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
+                        $style = array_merge($style, Utils::dumbPropertyDict($styleMatch[2]));
+                    }
+                    $effective = Utils::googleListStyle($style);
+                    if ('ul' === $effective || 'ol' === $effective) {
+                        $tagName = $effective;
+                    }
+                }
+
+                $numberingStart = 0;
+                if ('ol' === $tagName) {
+                    if (\preg_match('/start\s*=\s*(?:"|\'|)(\d+)/i', $attrString, $startMatch)) {
+                        $numberingStart = ((int) $startMatch[1]) - 1;
+                    }
+                }
+
+                $stack[] = ['name' => $tagName, 'num' => $numberingStart];
+
+                if ($selfClosing) {
+                    \array_pop($stack);
+                }
+
+                continue;
+            }
+
+            if ('li' === $tagName) {
+                $currentStack = $stack;
+                if (!$currentStack) {
+                    $currentStack = [['name' => 'ul', 'num' => 0]];
+                }
+                $structure[++$liIndex] = array_map(
+                    static fn (array $level): array => ['name' => $level['name'], 'num' => $level['num']],
+                    $currentStack
+                );
+            }
+        }
+
+        return $structure;
+    }
+
+    private function ensureListStackForCurrentListItem(): void
+    {
+        ++$this->liCursor;
+
+        if (!\array_key_exists($this->liCursor, $this->listStructure)) {
+            return;
+        }
+
+        $targetStack = $this->listStructure[$this->liCursor];
+        $this->alignListStack($targetStack);
+    }
+
+    /**
+     * @param list<array{name:string,num:int}> $targetStack
+     */
+    private function alignListStack(array $targetStack): void
+    {
+        $targetDepth = \count($targetStack);
+
+        while (\count($this->list) > $targetDepth) {
+            \array_pop($this->list);
+        }
+
+        for ($i = 0; $i < $targetDepth; ++$i) {
+            $target = $targetStack[$i];
+            if (!\array_key_exists($i, $this->list) || $this->list[$i]->name !== $target['name']) {
+                while (\count($this->list) > $i) {
+                    \array_pop($this->list);
+                }
+                $this->list[] = new ListElement($target['name'], $target['num']);
+            }
+        }
+    }
+
+    private function walkDom(\DOMNode $node): void
+    {
+        switch ($node->nodeType) {
+            case \XML_TEXT_NODE:
+            case \XML_CDATA_SECTION_NODE:
+                if ('' !== $node->nodeValue) {
+                    $this->processTextNode($node->nodeValue);
+                }
+
+                return;
+
+            case \XML_ELEMENT_NODE:
+                $tagName = strtolower($node->nodeName);
+                $attrs = [];
+                if ($node->hasAttributes()) {
+                    foreach ($node->attributes as $attribute) {
+                        $attrs[strtolower($attribute->name)] = $this->decodeAttributePlaceholders($attribute->value);
+                    }
+                }
+
+                $this->handle_tag($tagName, $attrs, true);
+                if ($node->hasChildNodes()) {
+                    foreach ($node->childNodes as $child) {
+                        $this->walkDom($child);
+                    }
+                }
+                $this->handle_tag($tagName, [], false);
+
+                return;
+
+            case \XML_COMMENT_NODE:
+            case \XML_PI_NODE:
+            case \XML_DOCUMENT_TYPE_NODE:
+                return;
+
+            default:
+                if ($node->hasChildNodes()) {
+                    foreach ($node->childNodes as $childNode) {
+                        $this->walkDom($childNode);
+                    }
+                }
+        }
+    }
+
+    private function preprocessEntities(string $html): string
+    {
+        return (string) preg_replace_callback(
+            '/&(#x[0-9A-Fa-f]+|#X[0-9A-Fa-f]+|#[0-9]+|[A-Za-z][A-Za-z0-9]+);/',
+            static function (array $match): string {
+                $entity = $match[1];
+                if ('' === $entity) {
+                    return $match[0];
+                }
+
+                if ('#' === $entity[0]) {
+                    $code = \substr($entity, 1);
+
+                    return self::PLACEHOLDER_PREFIX.'CHAR_'.strtolower($code).self::PLACEHOLDER_SUFFIX;
+                }
+
+                return self::PLACEHOLDER_PREFIX.'ENT_'.strtolower($entity).self::PLACEHOLDER_SUFFIX;
+            },
+            $html
+        );
+    }
+
+    private function processTextNode(string $text): void
+    {
+        $pattern = '/'.\preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.\preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.\preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
+        $offset = 0;
+        $length = \strlen($text);
+
+        while (\preg_match($pattern, $text, $matches, \PREG_OFFSET_CAPTURE, $offset)) {
+            [$placeholder, $position] = $matches[0];
+            if ($position > $offset) {
+                $segment = \substr($text, $offset, $position - $offset);
+                if ('' !== $segment) {
+                    $this->handle_data($this->normalizePlainText($segment));
+                }
+            }
+
+            $converted = $this->convertPlaceholder($matches[1][0], $matches[2][0]);
+            if ('' !== $converted) {
+                $this->handle_data($converted, true);
+            }
+
+            $offset = $position + \strlen($placeholder);
+        }
+
+        if ($offset < $length) {
+            $remaining = \substr($text, $offset);
+            if ('' !== $remaining) {
+                $this->handle_data($this->normalizePlainText($remaining));
+            }
+        }
+    }
+
+    private function convertPlaceholder(string $type, string $value): string
+    {
+        if ('CHAR' === $type) {
+            return $this->charref($value);
+        }
+
+        if ('ENT' === $type) {
+            return $this->entityref($value);
+        }
+
+        return '';
+    }
+
+    private function decodeAttributePlaceholders(?string $value): ?string
+    {
+        if (null === $value || '' === $value) {
+            return $value;
+        }
+
+        $pattern = '/'.\preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.\preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.\preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
+        $offset = 0;
+        $result = '';
+        $length = \strlen($value);
+
+        while (\preg_match($pattern, $value, $matches, \PREG_OFFSET_CAPTURE, $offset)) {
+            [$placeholder, $position] = $matches[0];
+            if ($position > $offset) {
+                $result .= \substr($value, $offset, $position - $offset);
+            }
+
+            $result .= $this->convertPlaceholder($matches[1][0], $matches[2][0]);
+            $offset = $position.\strlen($placeholder);
+        }
+
+        if ($offset < $length) {
+            $result .= \substr($value, $offset);
+        }
+
+        return $this->normalizePlainText($result);
+    }
+
+    private function normalizePlainText(string $text): string
+    {
+        if ('' === $text) {
+            return $text;
+        }
+
+        $text = \str_replace(["\u{200E}", "\u{200F}"], '', $text);
+
+        $nbsp = html_entity_decode('&nbsp;', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
+        if ('' !== $nbsp) {
+            $placeholder = $this->configUnifiable['nbsp'] ?? '&nbsp_place_holder;';
+            $text = \str_replace($nbsp, $placeholder, $text);
+        }
+
+        return $text;
+    }
+
     /**
      * @return list<string>
      */
@@ -1769,8 +1761,8 @@ final class HTML2Text
             return [$text];
         }
 
-        $wrapped = wordwrap($text, $width, "\n", false);
-        $lines = explode("\n", $wrapped);
+        $wrapped = \wordwrap($text, $width, "\n", false);
+        $lines = \explode("\n", $wrapped);
         if ('' !== $subIndent) {
             foreach ($lines as $index => $line) {
                 if (0 === $index) {
@@ -1791,48 +1783,50 @@ final class HTML2Text
         if ('' === $base) {
             return $link;
         }
-        if (preg_match('/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//', $link)) {
+        if (\preg_match('/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//', $link)) {
             return $link;
         }
 
-        $baseParts = parse_url($base);
+        $baseParts = \parse_url($base);
         if (false === $baseParts) {
             return $link;
         }
 
-        if ($link[0] === '#') {
+        if ('#' === $link[0]) {
             $baseNoFragment = $base;
-            $hashPos = strpos($baseNoFragment, '#');
+            $hashPos = \strpos($baseNoFragment, '#');
             if (false !== $hashPos) {
-                $baseNoFragment = substr($baseNoFragment, 0, $hashPos);
+                $baseNoFragment = \substr($baseNoFragment, 0, $hashPos);
             }
 
             return $baseNoFragment.$link;
         }
 
-        if ($link[0] === '?' ) {
+        if ('?' === $link[0]) {
             $path = $baseParts['path'] ?? '/';
+
             return $this->buildUrl($baseParts, $path.$link);
         }
 
-        if (str_starts_with($link, '//')) {
+        if (\str_starts_with($link, '//')) {
             $scheme = $baseParts['scheme'] ?? '';
+
             return ($scheme ? $scheme.':' : '').$link;
         }
 
         $fragment = '';
-        if (false !== ($hashPos = strpos($link, '#'))) {
-            $fragment = substr($link, $hashPos);
-            $link = substr($link, 0, $hashPos);
+        if (false !== ($hashPos = \strpos($link, '#'))) {
+            $fragment = \substr($link, $hashPos);
+            $link = \substr($link, 0, $hashPos);
         }
 
         $query = '';
-        if (false !== ($queryPos = strpos($link, '?'))) {
-            $query = substr($link, $queryPos);
-            $link = substr($link, 0, $queryPos);
+        if (false !== ($queryPos = \strpos($link, '?'))) {
+            $query = \substr($link, $queryPos);
+            $link = \substr($link, 0, $queryPos);
         }
 
-        if (str_starts_with($link, '/')) {
+        if (\str_starts_with($link, '/')) {
             $path = $this->normalizePath($link);
         } else {
             $basePath = $baseParts['path'] ?? '';
@@ -1840,10 +1834,10 @@ final class HTML2Text
                 $basePath = '/';
             }
             $dir = $basePath;
-            if ('/' !== substr($dir, -1)) {
-                $lastSlash = strrpos($dir, '/');
+            if ('/' !== \substr($dir, -1)) {
+                $lastSlash = \strrpos($dir, '/');
                 if (false !== $lastSlash) {
-                    $dir = substr($dir, 0, $lastSlash + 1);
+                    $dir = \substr($dir, 0, $lastSlash + 1);
                 } else {
                     $dir = '/';
                 }
@@ -1880,27 +1874,27 @@ final class HTML2Text
 
     private function normalizePath(string $path): string
     {
-        $leadingSlash = str_starts_with($path, '/');
-        $trailingSlash = str_ends_with($path, '/');
-        $segments = explode('/', $path);
+        $leadingSlash = \str_starts_with($path, '/');
+        $trailingSlash = \str_ends_with($path, '/');
+        $segments = \explode('/', $path);
         $output = [];
         foreach ($segments as $segment) {
             if ('' === $segment || '.' === $segment) {
                 continue;
             }
             if ('..' === $segment) {
-                array_pop($output);
+                \array_pop($output);
                 continue;
             }
             $output[] = $segment;
         }
-        $normalized = implode('/', $output);
+        $normalized = \implode('/', $output);
         if ($leadingSlash) {
             $normalized = '/'.$normalized;
         }
         if ('' === $normalized) {
             $normalized = $leadingSlash ? '/' : '';
-        } elseif ($trailingSlash && $normalized !== '/') {
+        } elseif ($trailingSlash && '/' !== $normalized) {
             $normalized .= '/';
         }
 

@@ -34,7 +34,7 @@ final readonly class Config
         public int $googleListIndent = 36,
         /**
          * @var string[]
-         * Values that indicate bold text in inline styles.
+         *               Values that indicate bold text in inline styles
          */
         public array $boldTextStyleValues = ['bold', '700', '800', '900'],
         /** Ignore anchor tags entirely. */
