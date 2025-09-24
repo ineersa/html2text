@@ -450,6 +450,19 @@ final class HTML2Text
             }
 
             if ('ol' === $tagName || 'ul' === $tagName) {
+                // For Google Docs, the actual list type can be encoded in the inline style
+                // e.g. <ol style="list-style-type:disc"> should behave like an unordered list.
+                if ($this->googleDoc) {
+                    if (preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
+                        $styleDict = Utils::dumbPropertyDict($styleMatch[2]);
+                        $effective = Utils::googleListStyle($styleDict);
+                        // Only override when the effective style differs
+                        if ('ul' === $effective || 'ol' === $effective) {
+                            $tagName = $effective;
+                        }
+                    }
+                }
+
                 $numberingStart = 0;
                 if ('ol' === $tagName) {
                     if (preg_match('/start\s*=\s*(?:"|\'|)(\d+)/i', $attrString, $startMatch)) {
