@@ -295,8 +295,6 @@ final class HTML2Text
             $next = $current->nextSibling;
 
             if (XML_ELEMENT_NODE === $current->nodeType) {
-                $name = strtolower($current->nodeName);
-
                 $this->normaliseDomStructure($current);
             }
 
@@ -592,8 +590,6 @@ final class HTML2Text
                         $this->walkDom($childNode);
                     }
                 }
-
-                return;
         }
     }
 
@@ -681,7 +677,7 @@ final class HTML2Text
             }
 
             $result .= $this->convertPlaceholder($matches[1][0], $matches[2][0]);
-            $offset = $position + strlen($placeholder);
+            $offset = $position . strlen($placeholder);
         }
 
         if ($offset < $length) {
@@ -964,6 +960,8 @@ final class HTML2Text
             }
         }
         if ('br' === $tag && $start) {
+            // Avoid carrying over pending spaces before explicit line breaks
+            $this->space = false;
             if ($this->blockquote > 0) {
                 $this->o("  \n> ");
             } else {
@@ -1135,6 +1133,7 @@ final class HTML2Text
                             $title = $a['title'] ?? '';
                             $title = Utils::escapeMd($title ?? '');
                             $href = $a['href'] ?? '';
+                            $this->space = false;
                             $linkUrl($href, $title);
                         } else {
                             $index = $this->previousIndex($a);
@@ -1603,6 +1602,7 @@ final class HTML2Text
                 $this->emptyLink = false;
                 return;
             }
+            $this->space = false;
             $this->o('[');
             $this->maybeAutomaticLink = null;
             $this->emptyLink = false;
@@ -1729,12 +1729,9 @@ final class HTML2Text
                     $wrapped = $this->wrapParagraph($para, $this->bodyWidth, $indent);
                     $result .= implode("\n", $wrapped);
                     if (str_ends_with($para, '  ')) {
-                        // Preserve explicit two-space line breaks; avoid duplicating spaces for blockquotes
-                        if (str_starts_with($para, '> ')) {
-                            $result .= "\n"; // two spaces are already in $para
-                        } else {
-                            $result .= "  \n";
-                        }
+                        // Preserve explicit two-space line breaks without duplicating spaces
+                        // The trailing two spaces are already part of $para
+                        $result .= "\n";
                         $newlines = 1;
                     } elseif ('' !== $indent) {
                         $result .= "\n";
