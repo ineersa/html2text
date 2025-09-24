@@ -249,6 +249,8 @@ final class HTML2Text
             $nbsp = ' ';
         }
         $outtext = str_replace('&nbsp_place_holder;', $nbsp, $outtext);
+        // Remove stray single trailing spaces at end of lines (but keep explicit two-space breaks)
+        $outtext = (string) preg_replace('/(?<! ) \n/', "\n", $outtext);
 
         $this->outtextlist = [];
 
@@ -941,6 +943,7 @@ final class HTML2Text
                     $this->o(str_repeat('#', $headerLevel).' ');
                 } else {
                     $this->inheader = false;
+                    $this->p();
                     return;  // prevent redundant emphasis marks on headers
                 }
             }
