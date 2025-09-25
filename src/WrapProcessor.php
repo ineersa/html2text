@@ -99,8 +99,16 @@ class WrapProcessor
             return [$text];
         }
 
+        $hasExplicitLineBreak = str_ends_with($text, '  ');
         $wrapped = wordwrap($text, $width, "\n", false);
         $lines = explode("\n", $wrapped);
+        foreach ($lines as $index => $line) {
+            $lines[$index] = rtrim($line, " \t");
+        }
+        if ($hasExplicitLineBreak && $lines) {
+            $last = array_key_last($lines);
+            $lines[$last] .= '  ';
+        }
         if ('' !== $subIndent) {
             foreach ($lines as $index => $line) {
                 if (0 === $index) {
