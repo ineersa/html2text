@@ -45,6 +45,8 @@ final class Constants
     /** Detects Markdown escaping backslashes preceding meta characters. */
     public const RE_MD_BACKSLASH_MATCHER = '/(\\\\)(?=[\\`*_{}\[\]()#+\-.!])/';
 
+    public const RE_ABSOLUTE_URL_MATHCER = '/^[a-zA-Z+]+:\/\//';
+
     /** HTML entity replacements to normalise plain-text output. */
     public const UNIFIABLE = [
         'rsquo' => "'",
@@ -53,7 +55,7 @@ final class Constants
         'ldquo' => '"',
         'copy' => '(C)',
         'mdash' => '--',
-        'nbsp' => ' ',
+        'nbsp' => '&nbsp_place_holder;',
         'rarr' => '->',
         'larr' => '<-',
         'middot' => '*',

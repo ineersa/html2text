@@ -30,6 +30,10 @@ final readonly class Config
         public bool $wrapListItems = false,
         /** Wrap table output text. */
         public bool $wrapTables = false,
+        /** Is Google Doc */
+        public bool $googleDoc = false,
+        /** Callback to apply at tag processing, $callback($this, $tag, $attrs, $start), should return true to break processing, false otherwise */
+        public ?\Closure $tagCallback = null,
         /** Pixels Google uses to indent nested lists. */
         public int $googleListIndent = 36,
         /**
@@ -55,8 +59,6 @@ final readonly class Config
         public bool $markCode = false,
         /** Use backquotes instead of indentation for code blocks. */
         public bool $backquoteCodeStyle = false,
-        /** Behavior when decoding errors occur (e.g., strict or ignore). */
-        public string $decodeErrors = 'strict',
         /** Fallback alt text when an image omits it. */
         public string $defaultImageAlt = '',
         /** Pad tables to align cell widths. */
@@ -75,6 +77,12 @@ final readonly class Config
         public string $closeQuote = '"',
         /** Include <sup> and <sub> tags in the output. */
         public bool $includeSupSub = false,
+        /** baseUrl to join with URLs if needed */
+        public string $baseUrl = '',
+        public string $ulItemMark = '*',
+        public string $emphasisMark = '_',
+        public string $strongMark = '**',
+        public bool $hideStrikethrough = false,
     ) {
     }
 }

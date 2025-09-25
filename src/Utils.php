@@ -467,6 +467,32 @@ final class Utils
         return implode("\n", $newLines);
     }
 
+    public static function googleNestCount(array $style, int $googleListIndent): int
+    {
+        /*
+        Calculate the nesting count of google doc lists
+
+        :type style: dict
+
+        :rtype: int
+        */
+        $nestCount = 0;
+        if (\array_key_exists('margin-left', $style)) {
+            $value = $style['margin-left'];
+            if (null !== $value) {
+                $trimmed = trim($value);
+                if (preg_match('/^(-?\d+(?:\.\d+)?)(px|pt)?$/i', $trimmed, $matches)) {
+                    $margin = (float) $matches[1];
+                    if ($googleListIndent > 0) {
+                        $nestCount = (int) floor(round($margin) / $googleListIndent);
+                    }
+                }
+            }
+        }
+
+        return $nestCount;
+    }
+
     /**
      * @return array<int, string>
      */

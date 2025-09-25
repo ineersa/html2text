@@ -5,8 +5,9 @@
 It is a PHP port of [Alir3z4/html2text](https://github.com/Alir3z4/html2text)
 
 
-
-
+```BASH
+ php -d xdebug.mode=debug -d xdebug.client_host=127.0.0.1 -d xdebug.client_port=9003 -d xdebug.start_with_request=yes ./bin/html-to-markdown.php ./tests/files/bodywidth_newline.html
+```
 
 
 

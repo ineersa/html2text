@@ -4,51 +4,71 @@ declare(strict_types=1);
 
 namespace Tests;
 
-use Ineersa\PhpHtml2text\HTML2Text;
+use Ineersa\PhpHtml2text\Config;
+use Ineersa\PhpHtml2text\HTML2Markdown;
+use Ineersa\PhpHtml2text\TagProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-use function Ineersa\PhpHtml2text\html2text;
-
-final class Html2TextTest extends TestCase
+final class Html2MarkdownTest extends TestCase
 {
     #[DataProvider('moduleCases')]
-    public function testModule(string $filename, array $moduleArgs): void
+    public function testConvert(string $filename, array $moduleArgs): void
     {
-        $baseurl = $moduleArgs['baseurl'] ?? '';
-        $bodyWidth = $moduleArgs['bodyWidth'] ?? null;
-        $converter = new HTML2Text(null, $baseurl, $bodyWidth);
-
-        foreach ($moduleArgs as $key => $value) {
-            if ('baseurl' === $key || 'bodyWidth' === $key) {
-                continue;
-            }
-            if (!property_exists($converter, $key)) {
-                continue;
-            }
-            $converter->$key = $value;
-        }
+        $config = self::createConfig($moduleArgs);
+        $converter = new HTML2Markdown($config);
 
         $expected = self::getBaseline($filename);
         $html = self::cleanupEol((string) file_get_contents($filename));
-        $actual = $converter->handle($html);
+        $actual = $converter->convert($html);
 
+        $this->assertIsString($actual);
         $this->assertSame(rtrim($expected), rtrim($actual));
     }
 
     #[DataProvider('functionCases')]
-    public function testFunction(string $filename, array $functionArgs): void
+    public function testInvoke(string $filename, array $functionArgs): void
     {
-        $html = (string) file_get_contents($filename);
-        $html = self::cleanupEol($html);
-        $actual = html2text(
-            $html,
-            $functionArgs['baseurl'] ?? '',
-            $functionArgs['bodywidth'] ?? null,
-        );
+        $config = self::createConfig($functionArgs);
+        $converter = new HTML2Markdown($config);
+
+        $html = self::cleanupEol((string) file_get_contents($filename));
+        $actual = $converter($html);
         $expected = self::getBaseline($filename);
-        file_put_contents('test_outpad', $actual);
+
+        $this->assertIsString($actual);
         $this->assertSame(rtrim($expected), rtrim($actual));
+    }
+
+    public function testTagCallback(): void
+    {
+        $config = self::createConfig([
+            'tagCallback' => static function (TagProcessor $unusedProcessor, string $tag, array $attrs, bool $start): bool {
+                if ('b' === $tag) {
+                    return true;
+                }
+
+                return false;
+            },
+        ]);
+        $converter = new HTML2Markdown($config);
+
+        $actual = $converter->convert(
+            'this is a <b>txt</b> and this is a <b class="skip">with text</b> and some <i>italics</i> too.'
+        );
+
+        $this->assertSame("this is a txt and this is a with text and some _italics_ too.\n\n", $actual);
+    }
+
+    public function testStrongEmptied(): void
+    {
+        $config = self::createConfig([
+            'emphasisMark' => '_',
+            'strongMark' => '',
+        ]);
+        $converter = new HTML2Markdown($config);
+
+        $this->assertSame('A B _C_.\n\n', $converter->convert('A <b>B</b> <i>C</i>.'));
     }
 
     public static function moduleCases(): array
@@ -232,5 +252,60 @@ final class Html2TextTest extends TestCase
         $content = (string) file_get_contents($expectedFile);
 
         return rtrim(self::cleanupEol($content));
+    }
+
+    private static function createConfig(array $options): Config
+    {
+        $normalized = [];
+        $configParameters = self::configParameterMap();
+
+        foreach ($options as $key => $value) {
+            if (null === $value) {
+                continue;
+            }
+            $normalizedKey = self::normalizeConfigKey($key);
+            if (null === $normalizedKey) {
+                continue;
+            }
+            if (!isset($configParameters[$normalizedKey])) {
+                continue;
+            }
+            $normalized[$normalizedKey] = $value;
+        }
+
+        return new Config(...$normalized);
+    }
+
+    private static function normalizeConfigKey(string $key): ?string
+    {
+        return match ($key) {
+            'baseurl' => 'baseUrl',
+            'bodywidth' => 'bodyWidth',
+            default => $key,
+        };
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function configParameterMap(): array
+    {
+        static $cache = null;
+        if (null !== $cache) {
+            return $cache;
+        }
+
+        $reflection = new \ReflectionClass(Config::class);
+        $constructor = $reflection->getConstructor();
+        $parameters = [];
+        if (null !== $constructor) {
+            foreach ($constructor->getParameters() as $parameter) {
+                $parameters[$parameter->getName()] = true;
+            }
+        }
+
+        $cache = $parameters;
+
+        return $cache;
     }
 }
