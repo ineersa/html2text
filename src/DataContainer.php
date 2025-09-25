@@ -110,7 +110,6 @@ class DataContainer
 
                 return;
             }
-            $this->space = false;
             $this->appendFormattedData('[');
             $this->maybeAutomaticLink = null;
             $this->emptyLink = false;

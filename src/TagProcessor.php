@@ -314,7 +314,6 @@ class TagProcessor
                             $title = $a['title'] ?? '';
                             $title = Utils::escapeMd($title);
                             $href = $a['href'] ?? '';
-                            $this->data->space = false;
                             $linkUrl($href, $title);
                         } else {
                             $index = $this->previousIndex($a);
