@@ -182,7 +182,7 @@ class DataContainer
         }
 
         if ($this->pre) {
-            if ($this->list) {
+            if ($this->list || '' !== $this->listCodeIndent) {
                 $bq .= $this->listCodeIndent;
             }
 
