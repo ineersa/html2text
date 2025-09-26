@@ -554,6 +554,7 @@ class TagProcessor
                     $this->data->pushToList("\n[/code]");
                 }
             }
+
             $this->data->initializePrettyPrint();
         }
         if (\in_array($tag, ['sup', 'sub'], true) && $this->config->includeSupSub) {

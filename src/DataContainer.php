@@ -199,9 +199,10 @@ class DataContainer
             if ($this->config->backquoteCodeStyle) {
                 $this->pushToList("\n".$this->preIndent.'```');
                 $this->prettyPrint = 0;
-            } elseif ($this->list) {
-                // use existing initial indentation
-                $data = ltrim($data, "\n".$this->preIndent);
+            } elseif ('' !== $this->listCodeIndent || $this->list) {
+                // Trim the first newline plus indent so list-wrapped <pre> blocks don't add blank lines.
+                $pattern = '/^\r?\n'.preg_quote($this->preIndent, '/').'/';
+                $data = (string) preg_replace($pattern, '', $data, 1);
             }
         }
 
