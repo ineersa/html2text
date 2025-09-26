@@ -39,11 +39,8 @@ final class Constants
     /** Matches dash-prefixed unordered lists and horizontal rules. */
     public const RE_MD_DASH_MATCHER = '/^(\s*)(-)(?=\s|-)/m';
 
-    /** Listing of characters requiring backslash escaping. */
-    public const RE_SLASH_CHARS = '\\`*_{}[]()#+-.!';
-
     /** Detects Markdown escaping backslashes preceding meta characters. */
-    public const RE_MD_BACKSLASH_MATCHER = '/(\\\\)(?=[\\`*_{}\[\]()#+\-.!])/';
+    public const RE_MD_BACKSLASH_MATCHER = '/(\\\\)(?=[\\\\`*_\{\}\[\]\(\)\#\+\-\.\!])/x';
 
     public const RE_ABSOLUTE_URL_MATHCER = '/^[a-zA-Z+]+:\/\//';
 
