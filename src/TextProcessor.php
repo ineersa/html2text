@@ -17,6 +17,7 @@ class TextProcessor
 
     public function process(string $text): void
     {
+        // Split runs of text on our synthetic entity placeholders (e.g. __PH2T__ENT_mdash__).
         $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
         $offset = 0;
         $length = \strlen($text);
@@ -53,6 +54,7 @@ class TextProcessor
             return $value;
         }
 
+        // Attributes use the same placeholder encoding as text nodes; decode them deterministically.
         $pattern = '/'.preg_quote(self::PLACEHOLDER_PREFIX, '/').'(CHAR|ENT)_([^'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').']+)'.preg_quote(self::PLACEHOLDER_SUFFIX, '/').'/';
         $offset = 0;
         $result = '';

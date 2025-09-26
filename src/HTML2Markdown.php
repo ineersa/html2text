@@ -9,6 +9,9 @@ use Dom\HTMLElement;
 
 class HTML2Markdown
 {
+    private const PLACEHOLDER_PREFIX = '__PH2T__';
+    private const PLACEHOLDER_SUFFIX = '__';
+
     protected DataContainer $data;
     protected TextProcessor $textProcessor;
     private HTMLDocument $document;
@@ -34,7 +37,8 @@ class HTML2Markdown
         }
 
         $this->initProcessors();
-        $this->document = $this->loadDocument($html);
+        $processedHtml = $this->preprocessEntities($html);
+        $this->document = $this->loadDocument($processedHtml);
         $this->listsStructure = new ListsStructure($html, $this->config->googleDoc);
 
         if (null !== $this->document->documentElement) {
@@ -138,5 +142,31 @@ class HTML2Markdown
         libxml_clear_errors();
 
         return $document;
+    }
+
+    /**
+     * Replace character/entity references with placeholders so the text processor
+     * can restore them later without relying on DOM normalisation side-effects.
+     */
+    private function preprocessEntities(string $html): string
+    {
+        return (string) preg_replace_callback(
+            '/&(#x[0-9A-Fa-f]+|#X[0-9A-Fa-f]+|#[0-9]+|[A-Za-z][A-Za-z0-9]+);/',
+            static function (array $match): string {
+                $entity = $match[1];
+                if ('' === $entity) {
+                    return $match[0];
+                }
+
+                if ('#' === $entity[0]) {
+                    $code = substr($entity, 1);
+
+                    return self::PLACEHOLDER_PREFIX.'CHAR_'.strtolower($code).self::PLACEHOLDER_SUFFIX;
+                }
+
+                return self::PLACEHOLDER_PREFIX.'ENT_'.strtolower($entity).self::PLACEHOLDER_SUFFIX;
+            },
+            $html
+        );
     }
 }

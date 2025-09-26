@@ -29,7 +29,8 @@
   "require": {
     "php": ">=8.4",
     "ext-dom": "*",
-    "ext-libxml": "*"
+    "ext-libxml": "*",
+    "symfony/string": "^7.3"
   },
   "config": {
     "sort-packages": true
