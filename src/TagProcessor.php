@@ -38,6 +38,7 @@ class TagProcessor
         private Config $config,
         private DataContainer $data,
         private HTML2Markdown $HTML2Markdown,
+        private TrProcessor $trProcessor,
     ) {
     }
 
@@ -46,6 +47,15 @@ class TagProcessor
         $this->data->currentTag = $tag;
         $this->parentStyle = [];
         $this->tagStyle = [];
+
+        $isExplicitTrClosing = true;
+        if ('tr' === $tag) {
+            if ($start) {
+                $this->trProcessor->start();
+            } else {
+                $isExplicitTrClosing = $this->trProcessor->end();
+            }
+        }
 
         if (null !== $this->config->tagCallback) {
             $callback = $this->config->tagCallback;
@@ -523,11 +533,11 @@ class TagProcessor
                 if ('tr' === $tag && $start) {
                     $this->tdCount = 0;
                 }
-                if ('tr' === $tag && !$start) {
+                if ('tr' === $tag && !$start && $isExplicitTrClosing) {
                     $this->splitNextTd = false;
                     $this->data->softBr();
                 }
-                if ('tr' === $tag && !$start && $this->tableStart) {
+                if ('tr' === $tag && !$start && $this->tableStart && $isExplicitTrClosing) {
                     // Underline table header
                     if ($this->tdCount > 0) {
                         $this->data->appendFormattedData(implode('|', array_fill(0, $this->tdCount, '---')));
