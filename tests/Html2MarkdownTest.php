@@ -68,7 +68,7 @@ final class Html2MarkdownTest extends TestCase
         ]);
         $converter = new HTML2Markdown($config);
 
-        $this->assertSame('A B _C_.\n\n', $converter->convert('A <b>B</b> <i>C</i>.'));
+        $this->assertSame("A B _C_.\n\n", $converter->convert('A <b>B</b> <i>C</i>.'));
     }
 
     public static function moduleCases(): array
