@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Ineersa\PhpHtml2text;
 
 use Ineersa\PhpHtml2text\Elements\ListElement;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
 
 class ListsStructure
 {
-    public $liCursor;
+    public int $liCursor;
 
     /** @var list<ListElement> */
     public array $list = [];
@@ -73,7 +74,7 @@ class ListsStructure
         if ($this->googleDoc) {
             if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $styleBlocks)) {
                 foreach ($styleBlocks[1] as $css) {
-                    $styleDef = array_replace($styleDef, Utils::dumbCssParser($css));
+                    $styleDef = array_replace($styleDef, ParserUtilities::dumbCssParser($css));
                 }
             }
         }
@@ -124,9 +125,9 @@ class ListsStructure
                     }
                     // Merge inline style if present
                     if (preg_match('/style\s*=\s*(["\'])(.*?)\1/i', $attrString, $styleMatch)) {
-                        $style = array_merge($style, Utils::dumbPropertyDict($styleMatch[2]));
+                        $style = array_merge($style, ParserUtilities::dumbPropertyDict($styleMatch[2]));
                     }
-                    $effective = Utils::googleListStyle($style);
+                    $effective = ParserUtilities::googleListStyle($style);
                     if ('ul' === $effective || 'ol' === $effective) {
                         $tagName = $effective;
                     }

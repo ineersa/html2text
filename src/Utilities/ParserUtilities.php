@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Utilities;
 
-final class Utils
+use Ineersa\PhpHtml2text\Constants;
+
+final class ParserUtilities
 {
     /**
      * Equivalent of the Python ``unifiable_n`` map derived from HTML entities.

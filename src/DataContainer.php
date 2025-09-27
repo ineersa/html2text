@@ -6,6 +6,8 @@ namespace Ineersa\PhpHtml2text;
 
 use Ineersa\PhpHtml2text\Elements\AnchorElement;
 use Ineersa\PhpHtml2text\Elements\ListElement;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\PhpHtml2text\Utilities\UrlUtilities;
 
 class DataContainer
 {
@@ -85,7 +87,7 @@ class DataContainer
             $firstChar = mb_substr($data, 0, 1);
             if (
                 1 === preg_match('/[^\[\](){}\s.!?]/u', $firstChar)
-                && 0 === Utils::hn($this->currentTag)
+                && 0 === ParserUtilities::hn($this->currentTag)
                 && !\in_array($this->currentTag, ['a', 'code', 'pre'], true)
             ) {
                 // should match a letter or common punctuation
@@ -95,7 +97,7 @@ class DataContainer
         }
 
         if ($this->style) {
-            $this->styleDef = array_replace($this->styleDef, Utils::dumbCssParser($data));
+            $this->styleDef = array_replace($this->styleDef, ParserUtilities::dumbCssParser($data));
         }
 
         if (null !== $this->maybeAutomaticLink) {
@@ -116,7 +118,7 @@ class DataContainer
         }
 
         if (!$this->code && !$this->pre && !$entityChar) {
-            $data = Utils::escapeMdSection($data, $this->config->escapeSnob);
+            $data = ParserUtilities::escapeMdSection($data, $this->config->escapeSnob);
         }
         $this->precedingData = $data;
         $this->emptyLink = false;
@@ -247,7 +249,7 @@ class DataContainer
                         '   ['
                         .$link->count
                         .']: '
-                        .UrlBuilder::urlJoin($this->config->baseUrl, $link->attrs['href'] ?? '')
+                        .UrlUtilities::urlJoin($this->config->baseUrl, $link->attrs['href'] ?? '')
                     );
                     if (
                         \array_key_exists('title', $link->attrs)
@@ -307,8 +309,8 @@ class DataContainer
         /*
         Handles various text emphases
         */
-        $tagEmphasis = Utils::googleTextEmphasis($tagStyle);
-        $parentEmphasis = Utils::googleTextEmphasis($parentStyle);
+        $tagEmphasis = ParserUtilities::googleTextEmphasis($tagStyle);
+        $parentEmphasis = ParserUtilities::googleTextEmphasis($parentStyle);
 
         // handle Google's text emphasis
         $strikethrough = \in_array('line-through', $tagEmphasis, true) && $this->config->hideStrikethrough;
@@ -324,8 +326,8 @@ class DataContainer
 
         $italic = \in_array('italic', $tagEmphasis, true) && !\in_array('italic', $parentEmphasis, true);
         $fixed = (
-            Utils::googleFixedWidthFont($tagStyle)
-            && !Utils::googleFixedWidthFont($parentStyle)
+            ParserUtilities::googleFixedWidthFont($tagStyle)
+            && !ParserUtilities::googleFixedWidthFont($parentStyle)
             && !$this->pre
         );
 

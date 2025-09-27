@@ -6,7 +6,7 @@ namespace Tests;
 
 use Ineersa\PhpHtml2text\Config;
 use Ineersa\PhpHtml2text\HTML2Markdown;
-use Ineersa\PhpHtml2text\TagProcessor;
+use Ineersa\PhpHtml2text\Processors\TagProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

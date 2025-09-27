@@ -2,7 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
+
+use Ineersa\PhpHtml2text\Config;
+use Ineersa\PhpHtml2text\Constants;
+use Ineersa\PhpHtml2text\DataContainer;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
 
 class TextProcessor
 {
@@ -92,11 +97,11 @@ class TextProcessor
         if ($c <= 0 || $c >= 0x110000 || ($c >= 0xD800 && $c < 0xE000)) {
             $c = 0xFFFD;  // REPLACEMENT CHARACTER
         }
-        $replacements = Utils::controlCharacterReplacements();
+        $replacements = ParserUtilities::controlCharacterReplacements();
         $c = $replacements[$c] ?? $c;
 
         if (!$this->config->unicodeSnob) {
-            $unifiable = Utils::unifiableN();
+            $unifiable = ParserUtilities::unifiableN();
             if (\array_key_exists($c, $unifiable)) {
                 return $unifiable[$c];
             }

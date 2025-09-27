@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Utilities;
 
-/**
- * Compute anchor nesting depth information from the original HTML source.
- */
-final class AnchorDepthTracker
+final class AnchorUtilities
 {
     /**
+     * Compute anchor nesting depth information from the original HTML source.
      * @return array{0: list<int>, 1: list<int>, 2: list<array{text: string, depth: int}>}
      */
     public static function compute(string $html): array
@@ -34,9 +32,6 @@ final class AnchorDepthTracker
                     if ($depth > 0) {
                         $closeDepths[] = $depth;
                         --$depth;
-                        if ($depth < 0) {
-                            $depth = 0;
-                        }
                     }
 
                     continue;
@@ -49,9 +44,6 @@ final class AnchorDepthTracker
                     if (1 === preg_match('/\/\s*>$/', $token)) {
                         $closeDepths[] = $depth;
                         --$depth;
-                        if ($depth < 0) {
-                            $depth = 0;
-                        }
                     }
                 }
 

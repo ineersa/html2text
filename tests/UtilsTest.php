@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Ineersa\PhpHtml2text\Constants;
-use Ineersa\PhpHtml2text\Utils;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -13,7 +13,7 @@ final class UtilsTest extends TestCase
 {
     public function testUnifiableNMatchesPython(): void
     {
-        $map = Utils::unifiableN();
+        $map = ParserUtilities::unifiableN();
 
         $this->assertSame("'", $map[0x2019] ?? null);
         $this->assertArrayNotHasKey(0x00A0, $map);
@@ -21,13 +21,13 @@ final class UtilsTest extends TestCase
 
     public function testControlCharacterReplacementsPassthrough(): void
     {
-        $this->assertSame(Constants::CONTROL_CHARACTER_REPLACEMENTS, Utils::controlCharacterReplacements());
+        $this->assertSame(Constants::CONTROL_CHARACTER_REPLACEMENTS, ParserUtilities::controlCharacterReplacements());
     }
 
     #[DataProvider('provideHnSamples')]
     public function testHnMatchesPython(string $tag, int $expected): void
     {
-        $this->assertSame($expected, Utils::hn($tag));
+        $this->assertSame($expected, ParserUtilities::hn($tag));
     }
 
     /**
@@ -54,7 +54,7 @@ final class UtilsTest extends TestCase
                 'font-weight' => 'bold',
                 'line-height' => '1.5',
             ],
-            Utils::dumbPropertyDict($style)
+            ParserUtilities::dumbPropertyDict($style)
         );
     }
 
@@ -67,7 +67,7 @@ final class UtilsTest extends TestCase
                 'p' => ['color' => 'blue'],
                 '.highlight' => ['font-weight' => 'bold'],
             ],
-            Utils::dumbCssParser($css)
+            ParserUtilities::dumbCssParser($css)
         );
     }
 
@@ -87,27 +87,27 @@ final class UtilsTest extends TestCase
                 'color' => 'red',
                 'line-height' => '1.5',
             ],
-            Utils::elementStyle($attrs, $styleDef, $parentStyle)
+            ParserUtilities::elementStyle($attrs, $styleDef, $parentStyle)
         );
     }
 
     public function testGoogleListStyleMatchesPython(): void
     {
-        $this->assertSame('ul', Utils::googleListStyle(['list-style-type' => 'disc']));
-        $this->assertSame('ol', Utils::googleListStyle(['list-style-type' => 'decimal']));
+        $this->assertSame('ul', ParserUtilities::googleListStyle(['list-style-type' => 'disc']));
+        $this->assertSame('ol', ParserUtilities::googleListStyle(['list-style-type' => 'decimal']));
     }
 
     public function testGoogleHasHeightMatchesPython(): void
     {
-        $this->assertTrue(Utils::googleHasHeight(['height' => '10px']));
-        $this->assertFalse(Utils::googleHasHeight(['width' => '10px']));
+        $this->assertTrue(ParserUtilities::googleHasHeight(['height' => '10px']));
+        $this->assertFalse(ParserUtilities::googleHasHeight(['width' => '10px']));
     }
 
     public function testGoogleTextEmphasisMatchesPython(): void
     {
         $this->assertSame(
             ['underline', 'italic', 'bold'],
-            Utils::googleTextEmphasis([
+            ParserUtilities::googleTextEmphasis([
                 'text-decoration' => 'underline',
                 'font-style' => 'italic',
                 'font-weight' => 'bold',
@@ -117,14 +117,14 @@ final class UtilsTest extends TestCase
 
     public function testGoogleFixedWidthFontMatchesPython(): void
     {
-        $this->assertTrue(Utils::googleFixedWidthFont(['font-family' => 'courier new']));
-        $this->assertFalse(Utils::googleFixedWidthFont(['font-family' => 'arial']));
+        $this->assertTrue(ParserUtilities::googleFixedWidthFont(['font-family' => 'courier new']));
+        $this->assertFalse(ParserUtilities::googleFixedWidthFont(['font-family' => 'arial']));
     }
 
     public function testListNumberingStartMatchesPython(): void
     {
-        $this->assertSame(2, Utils::listNumberingStart(['start' => '3']));
-        $this->assertSame(0, Utils::listNumberingStart(['start' => 'a']));
+        $this->assertSame(2, ParserUtilities::listNumberingStart(['start' => '3']));
+        $this->assertSame(0, ParserUtilities::listNumberingStart(['start' => 'a']));
     }
 
     #[DataProvider('provideSkipwrapSamples')]
@@ -135,7 +135,7 @@ final class UtilsTest extends TestCase
         bool $wrapTables,
         bool $expected,
     ): void {
-        $this->assertSame($expected, Utils::skipwrap($paragraph, $wrapLinks, $wrapListItems, $wrapTables));
+        $this->assertSame($expected, ParserUtilities::skipwrap($paragraph, $wrapLinks, $wrapListItems, $wrapTables));
     }
 
     /**
@@ -156,13 +156,13 @@ final class UtilsTest extends TestCase
 
     public function testEscapeMdMatchesPython(): void
     {
-        $this->assertSame('link \\[text\\]\\(url\\)', Utils::escapeMd('link [text](url)'));
+        $this->assertSame('link \\[text\\]\\(url\\)', ParserUtilities::escapeMd('link [text](url)'));
     }
 
     public function testEscapeMdSectionMatchesPython(): void
     {
-        $default = Utils::escapeMdSection("1. one\n+ plus\n- dash");
-        $snob = Utils::escapeMdSection('Use (parentheses) and #hash!', true);
+        $default = ParserUtilities::escapeMdSection("1. one\n+ plus\n- dash");
+        $snob = ParserUtilities::escapeMdSection('Use (parentheses) and #hash!', true);
 
         $this->assertSame("1\\. one\n\\+ plus\n\\- dash", $default);
         $this->assertSame('Use \\(parentheses\\) and \\#hash\\!', $snob);
@@ -174,7 +174,7 @@ final class UtilsTest extends TestCase
 
         $this->assertSame(
             ['| col1 |col2  |', '|------|------|', '| a    |b     |'],
-            Utils::reformatTable($lines, 1)
+            ParserUtilities::reformatTable($lines, 1)
         );
     }
 
@@ -185,7 +185,7 @@ final class UtilsTest extends TestCase
 
         $this->assertSame(
             "above\n| col1 |col2  |\n|------|------|\n| a    |b     |\n\nbelow",
-            Utils::padTablesInText($text, 1)
+            ParserUtilities::padTablesInText($text, 1)
         );
     }
 }

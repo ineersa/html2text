@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Utilities;
 
-class UrlBuilder
+class UrlUtilities
 {
     public static function urlJoin(string $base, string $link): string
     {

@@ -2,10 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
 
+use Ineersa\PhpHtml2text\Config;
+use Ineersa\PhpHtml2text\Constants;
+use Ineersa\PhpHtml2text\DataContainer;
 use Ineersa\PhpHtml2text\Elements\AnchorElement;
 use Ineersa\PhpHtml2text\Elements\ListElement;
+use Ineersa\PhpHtml2text\HTML2Markdown;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\PhpHtml2text\Utilities\UrlUtilities;
 
 class TagProcessor
 {
@@ -88,7 +94,7 @@ class TagProcessor
                     $last = $this->tagStack[array_key_last($this->tagStack)];
                     $this->parentStyle = $last[2];
                 }
-                $this->tagStyle = Utils::elementStyle($attrs, $this->data->styleDef, $this->parentStyle);
+                $this->tagStyle = ParserUtilities::elementStyle($attrs, $this->data->styleDef, $this->parentStyle);
                 $this->tagStack[] = [$tag, $attrs, $this->tagStyle];
             } else {
                 if ($this->tagStack) {
@@ -106,7 +112,7 @@ class TagProcessor
             }
         }
 
-        $headerLevel = Utils::hn($tag);
+        $headerLevel = ParserUtilities::hn($tag);
         if ($headerLevel > 0) {
             // check if nh is inside of an 'a' tag (incorrect but found in the wild)
             if ($this->astack) {
@@ -140,7 +146,7 @@ class TagProcessor
         }
         if (\in_array($tag, ['p', 'div'], true)) {
             if ($this->config->googleDoc) {
-                if ($start && Utils::googleHasHeight($this->tagStyle)) {
+                if ($start && ParserUtilities::googleHasHeight($this->tagStyle)) {
                     $this->data->initializePrettyPrint();
                 } else {
                     $this->data->softBr();
@@ -330,10 +336,10 @@ class TagProcessor
                     $href = $this->data->maybeAutomaticLink;
                     if (
                         $this->config->imagesToAlt
-                        && Utils::escapeMd($alt) === $href
+                        && ParserUtilities::escapeMd($alt) === $href
                         && 1 === preg_match(Constants::RE_ABSOLUTE_URL_MATHCER, $href)
                     ) {
-                        $this->data->appendFormattedData('<'.Utils::escapeMd($alt).'>');
+                        $this->data->appendFormattedData('<'.ParserUtilities::escapeMd($alt).'>');
                         $this->data->emptyLink = false;
 
                         return;
@@ -346,12 +352,12 @@ class TagProcessor
                 // If we have images_to_alt, we discard the image itself,
                 // considering only the alt text.
                 if ($this->config->imagesToAlt) {
-                    $this->data->appendFormattedData(Utils::escapeMd($alt));
+                    $this->data->appendFormattedData(ParserUtilities::escapeMd($alt));
                 } else {
-                    $this->data->appendFormattedData('!['.Utils::escapeMd($alt).']');
+                    $this->data->appendFormattedData('!['.ParserUtilities::escapeMd($alt).']');
                     if ($this->config->inlineLinks) {
                         $href = $attrs['href'] ?? '';
-                        $this->data->appendFormattedData('('.Utils::escapeMd(UrlBuilder::urlJoin($this->config->baseUrl, $href)).')');
+                        $this->data->appendFormattedData('('.ParserUtilities::escapeMd(UrlUtilities::urlJoin($this->config->baseUrl, $href)).')');
                     } else {
                         $index = $this->previousIndex($attrs);
                         if (null !== $index) {
@@ -385,11 +391,11 @@ class TagProcessor
             }
             if ($start) {
                 if ($this->config->googleDoc) {
-                    $listStyle = Utils::googleListStyle($this->tagStyle);
+                    $listStyle = ParserUtilities::googleListStyle($this->tagStyle);
                 } else {
                     $listStyle = $tag;
                 }
-                $numberingStart = Utils::listNumberingStart($attrs);
+                $numberingStart = ParserUtilities::listNumberingStart($attrs);
                 $this->HTML2Markdown->getListsStructure()->list[] = new ListElement($listStyle, $numberingStart);
             } else {
                 if ($this->HTML2Markdown->getListsStructure()->list) {
@@ -416,7 +422,7 @@ class TagProcessor
                     $li = new ListElement('ul', 0);
                 }
                 if ($this->config->googleDoc) {
-                    $this->data->appendFormattedData(str_repeat('  ', Utils::googleNestCount($this->tagStyle, $this->config->googleListIndent)));
+                    $this->data->appendFormattedData(str_repeat('  ', ParserUtilities::googleNestCount($this->tagStyle, $this->config->googleListIndent)));
                 } else {
                     $parentList = null;
                     foreach ($this->HTML2Markdown->getListsStructure()->list as $listElement) {
@@ -630,11 +636,11 @@ class TagProcessor
     {
         if ($this->config->inlineLinks) {
             $this->data->prettyPrint = 0;
-            $title = Utils::escapeMd($attrs['title'] ?? '');
+            $title = ParserUtilities::escapeMd($attrs['title'] ?? '');
             $href = $attrs['href'] ?? '';
-            $url = UrlBuilder::urlJoin($this->config->baseUrl, $href);
+            $url = UrlUtilities::urlJoin($this->config->baseUrl, $href);
             $titlePart = '' !== trim($title) ? ' "'.$title.'"' : '';
-            $this->data->appendFormattedData(']('.Utils::escapeMd($url).$titlePart.')');
+            $this->data->appendFormattedData(']('.ParserUtilities::escapeMd($url).$titlePart.')');
 
             return;
         }

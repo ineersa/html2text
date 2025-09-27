@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
 
 /**
  * Tracks whether <tr> elements had explicit closing tags in the original markup.

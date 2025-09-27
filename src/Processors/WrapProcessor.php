@@ -2,7 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
+
+use Ineersa\PhpHtml2text\Config;
+use Ineersa\PhpHtml2text\Constants;
+use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\PhpHtml2text\Utilities\StringUtilities;
 
 class WrapProcessor
 {
@@ -40,7 +45,7 @@ class WrapProcessor
                 $result .= $para."\n";
                 $newlines = 1;
             } elseif ('' !== $para) {
-                if (!Utils::skipwrap($para, $this->config->wrapLinks, $this->config->wrapListItems, $this->config->wrapTables)) {
+                if (!ParserUtilities::skipwrap($para, $this->config->wrapLinks, $this->config->wrapListItems, $this->config->wrapTables)) {
                     $indent = '';
                     if (str_starts_with($para, '  '.$this->config->ulItemMark)) {
                         // list item continuation: add a double indent to the
@@ -84,7 +89,7 @@ class WrapProcessor
         }
 
         if ($this->config->padTables) {
-            return Utils::padTablesInText($result);
+            return ParserUtilities::padTablesInText($result);
         }
 
         return $result;

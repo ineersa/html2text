@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Utilities;
 
 use function Symfony\Component\String\u;
 

@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
+
+use Ineersa\PhpHtml2text\Utilities\AnchorUtilities;
 
 /**
  * AnchorProcessor encapsulates all anchor-depth tracking and closure logic
@@ -39,7 +41,7 @@ final class AnchorProcessor
 
     public static function fromHtml(string $html): self
     {
-        return new self(...AnchorDepthTracker::compute($html));
+        return new self(...AnchorUtilities::compute($html));
     }
 
     public function pushStartDepth(): int
