@@ -8,7 +8,6 @@ require __DIR__.'/../../vendor/autoload.php';
 $arguments = $argv;
 array_shift($arguments);
 
-
 $source = $arguments[0];
 if (!is_file($source)) {
     fwrite(\STDERR, sprintf("File not found: %s\n", $source));

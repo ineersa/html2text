@@ -252,6 +252,7 @@ class DataContainer
                     if (
                         \array_key_exists('title', $link->attrs)
                         && null !== $link->attrs['title']
+                        && '' !== trim((string) $link->attrs['title'])
                     ) {
                         $this->pushToList(' ('.$link->attrs['title'].')');
                     }

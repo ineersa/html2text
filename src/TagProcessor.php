@@ -39,6 +39,7 @@ class TagProcessor
         private DataContainer $data,
         private HTML2Markdown $HTML2Markdown,
         private TrProcessor $trProcessor,
+        private AnchorProcessor $anchorProcessor,
     ) {
     }
 
@@ -286,58 +287,11 @@ class TagProcessor
             }
             $this->quote = !$this->quote;
         }
-        $linkUrl = function (string $link, string $title = ''): void {
-            $url = UrlBuilder::urlJoin($this->config->baseUrl, $link);
-            $titlePart = '' !== trim($title) ? ' "'.$title.'"' : '';
-            $this->data->appendFormattedData(']('.Utils::escapeMd($url).$titlePart.')');
-        };
         if ('a' === $tag && !$this->config->ignoreAnchors) {
             if ($start) {
-                if (
-                    \array_key_exists('href', $attrs)
-                    && null !== $attrs['href']
-                    && !($this->config->skipInternalLinks && str_starts_with($attrs['href'], '#'))
-                    && !($this->config->ignoreMailtoLinks && str_starts_with($attrs['href'], 'mailto:'))
-                ) {
-                    if ($this->config->protectLinks) {
-                        $attrs['href'] = '<'.$attrs['href'].'>';
-                    }
-                    $this->astack[] = $attrs;
-                    $this->data->maybeAutomaticLink = $attrs['href'];
-                    $this->data->emptyLink = true;
-                } else {
-                    $this->astack[] = null;
-                }
+                $this->handleAnchorStart($attrs);
             } else {
-                if ($this->astack) {
-                    $a = array_pop($this->astack);
-                    if (null !== $this->data->maybeAutomaticLink && !$this->data->emptyLink) {
-                        $this->data->maybeAutomaticLink = null;
-                    } elseif (null !== $a) {
-                        if ($this->data->emptyLink) {
-                            $this->data->appendFormattedData('[');
-                            $this->data->emptyLink = false;
-                            $this->data->maybeAutomaticLink = null;
-                        }
-                        if ($this->config->inlineLinks) {
-                            $this->data->prettyPrint = 0;
-                            $title = $a['title'] ?? '';
-                            $title = Utils::escapeMd($title);
-                            $href = $a['href'] ?? '';
-                            $linkUrl($href, $title);
-                        } else {
-                            $index = $this->previousIndex($a);
-                            if (null !== $index) {
-                                $aProps = $this->data->a[$index];
-                            } else {
-                                ++$this->aCount;
-                                $aProps = new AnchorElement($a, $this->aCount, $this->data->outcount);
-                                $this->data->a[] = $aProps;
-                            }
-                            $this->data->appendFormattedData(']['.$aProps->count.']');
-                        }
-                    }
-                }
+                $this->handleAnchorEnd();
             }
         }
         if ('img' === $tag && $start && !$this->config->ignoreImages) {
@@ -574,6 +528,136 @@ class TagProcessor
                 $this->data->appendFormattedData('</'.$tag.'>');
             }
         }
+    }
+
+    public function afterText(string $text): void
+    {
+        if ('' === $text) {
+            return;
+        }
+
+        $depth = $this->anchorProcessor->consumeTextDepth($text);
+        if (null === $depth) {
+            return;
+        }
+
+        $nextDepth = $this->anchorProcessor->peekNextTextDepth();
+        $this->anchorProcessor->flushForText($depth, $nextDepth, function (): void {
+            $a = array_pop($this->astack);
+            // Pop the current depth as part of closure
+            // The close pointer is advanced internally by AnchorProcessor::flushForText via callback
+            if (null !== $a) {
+                $this->finalizeAnchorClosure($a);
+            }
+        });
+    }
+
+    private function handleAnchorStart(array $attrs): void
+    {
+        $this->anchorProcessor->pushStartDepth();
+
+        if (
+            \array_key_exists('href', $attrs)
+            && null !== $attrs['href']
+            && !($this->config->skipInternalLinks && str_starts_with($attrs['href'], '#'))
+            && !($this->config->ignoreMailtoLinks && str_starts_with($attrs['href'], 'mailto:'))
+        ) {
+            if ($this->config->protectLinks) {
+                $attrs['href'] = '<'.$attrs['href'].'>';
+            }
+            $this->astack[] = $attrs;
+            $this->data->maybeAutomaticLink = $attrs['href'];
+            $this->data->emptyLink = true;
+
+            return;
+        }
+
+        $this->astack[] = null;
+    }
+
+    private function handleAnchorEnd(): void
+    {
+        if (!$this->astack) {
+            return;
+        }
+
+        $currentDepth = $this->anchorProcessor->currentDepth();
+        $expectedDepth = $this->anchorProcessor->expectedCloseDepth();
+        $isPremature = null !== $expectedDepth && $currentDepth !== $expectedDepth;
+
+        $attrs = end($this->astack);
+
+        if (null !== $this->data->maybeAutomaticLink && !$this->data->emptyLink) {
+            $this->data->maybeAutomaticLink = null;
+
+            if ($isPremature) {
+                $this->anchorProcessor->addPendingClosureForCurrentDepth();
+
+                return;
+            }
+
+            array_pop($this->astack);
+            $this->anchorProcessor->popOnExplicitClose();
+            $this->flushPendingAnchorClosures($currentDepth);
+
+            return;
+        }
+
+        if (null !== $attrs && $this->data->emptyLink) {
+            $this->data->appendFormattedData('[');
+            $this->data->emptyLink = false;
+            $this->data->maybeAutomaticLink = null;
+        }
+
+        if ($isPremature) {
+            $this->anchorProcessor->addPendingClosureForCurrentDepth();
+
+            return;
+        }
+
+        $closedDepth = $currentDepth;
+        $a = array_pop($this->astack);
+        $this->anchorProcessor->popOnExplicitClose();
+
+        if (null !== $a) {
+            $this->finalizeAnchorClosure($a);
+        }
+
+        $this->flushPendingAnchorClosures($closedDepth);
+    }
+
+    private function finalizeAnchorClosure(array $attrs): void
+    {
+        if ($this->config->inlineLinks) {
+            $this->data->prettyPrint = 0;
+            $title = Utils::escapeMd($attrs['title'] ?? '');
+            $href = $attrs['href'] ?? '';
+            $url = UrlBuilder::urlJoin($this->config->baseUrl, $href);
+            $titlePart = '' !== trim($title) ? ' "'.$title.'"' : '';
+            $this->data->appendFormattedData(']('.Utils::escapeMd($url).$titlePart.')');
+
+            return;
+        }
+
+        $index = $this->previousIndex($attrs);
+        if (null !== $index) {
+            $aProps = $this->data->a[$index];
+        } else {
+            ++$this->aCount;
+            $aProps = new AnchorElement($attrs, $this->aCount, $this->data->outcount);
+            $this->data->a[] = $aProps;
+        }
+        $this->data->appendFormattedData(']['.$aProps->count.']');
+    }
+
+    private function flushPendingAnchorClosures(?int $triggerDepth = null): void
+    {
+        $this->anchorProcessor->flushPending($triggerDepth, function (): void {
+            $a = array_pop($this->astack);
+            if (null !== $a) {
+                $this->finalizeAnchorClosure($a);
+            }
+        });
     }
 
     private function previousIndex(array $attrs): ?int

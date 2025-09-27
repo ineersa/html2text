@@ -85,7 +85,14 @@ class HTML2Markdown
         $this->data = new DataContainer($this->config);
         $this->textProcessor = new TextProcessor($this->config, $this->data);
         $trProcessor = new TrProcessor($html);
-        $this->tagProcessor = new TagProcessor($this->config, $this->data, $this, $trProcessor);
+        $anchorProcessor = AnchorProcessor::fromHtml($html);
+        $this->tagProcessor = new TagProcessor(
+            $this->config,
+            $this->data,
+            $this,
+            $trProcessor,
+            $anchorProcessor,
+        );
         $this->wrapProcessor = new WrapProcessor($this->config);
     }
 
@@ -95,7 +102,9 @@ class HTML2Markdown
             case \XML_TEXT_NODE:
             case \XML_CDATA_SECTION_NODE:
                 if ('' !== $node->nodeValue) {
-                    $this->textProcessor->process($node->nodeValue);
+                    $value = $node->nodeValue;
+                    $this->textProcessor->process($value);
+                    $this->tagProcessor->afterText($value);
                 }
 
                 return;

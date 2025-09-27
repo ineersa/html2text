@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text;
 
-use function iterator_to_array;
-use function preg_match;
-use function strpos;
-use function wordwrap;
 use function Symfony\Component\String\u;
 
 final class StringUtilities
@@ -19,7 +15,7 @@ final class StringUtilities
 
     /**
      * This method ripped from https://github.com/symfony/string/blob/f96476035142921000338bad71e5247fbc138872/AbstractString.php#L663
-     * Added hyphen aware break
+     * Added hyphen aware break.
      */
     public static function wordwrap(string $string, int $width = 75, string $break = "\n", bool $cut = false): string
     {
@@ -74,12 +70,12 @@ final class StringUtilities
         }
 
         $wrapped = '';
-        $mask = wordwrap($mask, $width, '#', $cut);
+        $mask = \wordwrap($mask, $width, '#', $cut);
         $maskCursor = -1;
         $maskIndex = -1;
         $charIndex = 0;
 
-        while (false !== $maskCursor = strpos($mask, '#', $maskCursor + 1)) {
+        while (false !== $maskCursor = \strpos($mask, '#', $maskCursor + 1)) {
             for (++$maskIndex; $maskIndex < $maskCursor; ++$maskIndex) {
                 $wrapped .= $chars[$charIndex];
                 unset($chars[$charIndex], $charKinds[$charIndex]);
@@ -110,7 +106,7 @@ final class StringUtilities
      */
     private static function chunkToArray(string $line): array
     {
-        $chunks = iterator_to_array(u($line)->chunk(), false);
+        $chunks = \iterator_to_array(u($line)->chunk(), false);
         $characters = [];
 
         foreach ($chunks as $chunk) {
@@ -134,11 +130,11 @@ final class StringUtilities
             return false;
         }
 
-        if (1 !== preg_match('/[\p{L}\p{N}]/u', $previous)) {
+        if (1 !== \preg_match('/[\p{L}\p{N}]/u', $previous)) {
             return false;
         }
 
-        if (1 !== preg_match('/[\p{L}\p{N}]/u', $next)) {
+        if (1 !== \preg_match('/[\p{L}\p{N}]/u', $next)) {
             return false;
         }
 
