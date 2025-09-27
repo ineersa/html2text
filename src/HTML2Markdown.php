@@ -49,10 +49,6 @@ class HTML2Markdown
 
         if (null !== $this->document->documentElement) {
             $this->traverseDom($this->document->documentElement);
-        } else {
-            foreach ($this->document->childNodes as $child) {
-                $this->traverseDom($child);
-            }
         }
 
         $result = $this->finish();
@@ -130,13 +126,6 @@ class HTML2Markdown
             case \XML_PI_NODE:
             case \XML_DOCUMENT_TYPE_NODE:
                 return;
-
-            default:
-                if ($node->hasChildNodes()) {
-                    foreach ($node->childNodes as $childNode) {
-                        $this->traverseDom($childNode);
-                    }
-                }
         }
     }
 

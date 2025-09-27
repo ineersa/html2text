@@ -32,9 +32,7 @@ class TextProcessor
             $position = (int) $position;
             if ($position > $offset) {
                 $segment = substr($text, $offset, $position - $offset);
-                if ('' !== $segment) {
-                    $this->data->push($this->normalizePlainText($segment));
-                }
+                $this->data->push($this->normalizePlainText($segment));
             }
 
             $converted = $this->convertPlaceholder($matches[1][0], $matches[2][0]);
@@ -47,9 +45,7 @@ class TextProcessor
 
         if ($offset < $length) {
             $remaining = substr($text, $offset);
-            if ('' !== $remaining) {
-                $this->data->push($this->normalizePlainText($remaining));
-            }
+            $this->data->push($this->normalizePlainText($remaining));
         }
     }
 
@@ -116,9 +112,6 @@ class TextProcessor
             return Constants::UNIFIABLE[$c];
         }
         $decoded = html_entity_decode('&'.$c.';', \ENT_QUOTES | \ENT_HTML5, 'UTF-8');
-        if ('&'.$c.';' === $decoded) {
-            return '&'.$c.';';
-        }
 
         if ('nbsp' === $c) {
             return Constants::UNIFIABLE['nbsp'];
@@ -137,7 +130,7 @@ class TextProcessor
             return $this->entityref($value);
         }
 
-        return '';
+        throw new \LogicException('Unsupported placeholder type.');
     }
 
     private function normalizePlainText(string $text): string

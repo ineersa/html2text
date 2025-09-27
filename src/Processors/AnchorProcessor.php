@@ -86,13 +86,6 @@ final class AnchorProcessor
             if (null !== $triggerDepth && $pendingDepth < $triggerDepth) {
                 break;
             }
-
-            $currentDepth = $this->currentDepth();
-            if ($pendingDepth !== $expectedDepth || $currentDepth !== $expectedDepth) {
-                break;
-            }
-
-            $this->flushSingle($onClose);
         }
     }
 
@@ -118,9 +111,6 @@ final class AnchorProcessor
     public function consumeTextDepth(string $text): ?int
     {
         $targetLength = mb_strlen($text);
-        if (0 === $targetLength) {
-            return null;
-        }
         $buffer = '';
         $depth = null;
         $total = \count($this->anchorTextDepths);
@@ -139,17 +129,7 @@ final class AnchorProcessor
 
     public function peekNextTextDepth(): ?int
     {
-        $total = \count($this->anchorTextDepths);
-        for ($i = $this->anchorTextPointer; $i < $total; ++$i) {
-            $text = $this->anchorTextDepths[$i]['text'];
-            if ('' === $text) {
-                continue;
-            }
-
-            return $this->anchorTextDepths[$i]['depth'];
-        }
-
-        return null;
+        return $this->anchorTextDepths[$this->anchorTextPointer]['depth'] ?? null;
     }
 
     private function flushSingle(callable $onClose): void
@@ -167,9 +147,6 @@ final class AnchorProcessor
             return $this->anchorStartDepths[$this->anchorStartPointer++];
         }
 
-        $this->anchorStartPointer = \count($this->anchorStartDepths);
-        $previousDepth = $this->anchorDepthStack ? (int) end($this->anchorDepthStack) : 0;
-
-        return $previousDepth + 1;
+        throw new \LogicException('Anchor depth calculation failed.');
     }
 }

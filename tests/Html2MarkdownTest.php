@@ -60,6 +60,15 @@ final class Html2MarkdownTest extends TestCase
         $this->assertSame("this is a txt and this is a with text and some _italics_ too.\n\n", $actual);
     }
 
+    public function testEmpty(): void
+    {
+        $converter = new HTML2Markdown(new Config());
+
+        $actual = $converter->convert('');
+
+        $this->assertSame('', $actual);
+    }
+
     public function testStrongEmptied(): void
     {
         $config = self::createConfig([
