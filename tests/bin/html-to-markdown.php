@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/../vendor/autoload.php';
+require __DIR__.'/../../vendor/autoload.php';
 
 $arguments = $argv;
 array_shift($arguments);
@@ -16,7 +16,7 @@ if (!is_file($source)) {
 }
 $html = (string) file_get_contents($source);
 
-$config = new Ineersa\PhpHtml2text\Config(protectLinks: true);
+$config = new Ineersa\PhpHtml2text\Config();
 $html2Markdown = new Ineersa\PhpHtml2text\HTML2Markdown($config);
 $markdown = $html2Markdown($html);
 
