@@ -6,7 +6,9 @@ namespace Ineersa\PhpHtml2text;
 
 use Dom\HTMLDocument;
 use Dom\HTMLElement;
+use Dom\Node;
 use Ineersa\PhpHtml2text\Processors\AnchorProcessor;
+use Ineersa\PhpHtml2text\Processors\ListProcessor;
 use Ineersa\PhpHtml2text\Processors\TagProcessor;
 use Ineersa\PhpHtml2text\Processors\TextProcessor;
 use Ineersa\PhpHtml2text\Processors\TrProcessor;
@@ -20,7 +22,7 @@ class HTML2Markdown
     protected DataContainer $data;
     protected TextProcessor $textProcessor;
     private HTMLDocument $document;
-    private ListsStructure $listsStructure;
+    private ListProcessor $listsProcessor;
     private TagProcessor $tagProcessor;
     private WrapProcessor $wrapProcessor;
 
@@ -44,7 +46,6 @@ class HTML2Markdown
         $this->initProcessors($html);
         $processedHtml = $this->preprocessEntities($html);
         $this->document = $this->loadDocument($processedHtml);
-        $this->listsStructure = new ListsStructure($html, $this->config->googleDoc);
 
         if (null !== $this->document->documentElement) {
             $this->traverseDom($this->document->documentElement);
@@ -57,16 +58,6 @@ class HTML2Markdown
         $result = $this->finish();
 
         return $this->wrapProcessor->process($result);
-    }
-
-    public function getDocument(): HTMLDocument
-    {
-        return $this->document;
-    }
-
-    public function getListsStructure(): ListsStructure
-    {
-        return $this->listsStructure;
     }
 
     protected function finish(): string
@@ -91,17 +82,19 @@ class HTML2Markdown
         $this->textProcessor = new TextProcessor($this->config, $this->data);
         $trProcessor = new TrProcessor($html);
         $anchorProcessor = AnchorProcessor::fromHtml($html);
+        $this->listsProcessor = new ListProcessor($html, $this->config);
         $this->tagProcessor = new TagProcessor(
             $this->config,
             $this->data,
             $this,
             $trProcessor,
             $anchorProcessor,
+            $this->listsProcessor,
         );
         $this->wrapProcessor = new WrapProcessor($this->config);
     }
 
-    private function traverseDom(\Dom\Node $node): void
+    private function traverseDom(Node $node): void
     {
         switch ($node->nodeType) {
             case \XML_TEXT_NODE:
@@ -161,7 +154,7 @@ class HTML2Markdown
 
     /**
      * Replace character/entity references with placeholders so the text processor
-     * can restore them later without relying on DOM normalisation side-effects.
+     * can restore them later without relying on DOM normalization side-effects.
      */
     private function preprocessEntities(string $html): string
     {
@@ -169,9 +162,6 @@ class HTML2Markdown
             '/&(#x[0-9A-Fa-f]+|#X[0-9A-Fa-f]+|#[0-9]+|[A-Za-z][A-Za-z0-9]+);/',
             static function (array $match): string {
                 $entity = $match[1];
-                if ('' === $entity) {
-                    return $match[0];
-                }
 
                 if ('#' === $entity[0]) {
                     $code = substr($entity, 1);

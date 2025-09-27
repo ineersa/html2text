@@ -2,37 +2,41 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\PhpHtml2text\Processors;
 
+use Ineersa\PhpHtml2text\Config;
 use Ineersa\PhpHtml2text\Elements\ListElement;
 use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
 
-class ListsStructure
+class ListProcessor
 {
-    public int $liCursor;
+    /**
+     * Cursor incremented on every <li> encountered in the original HTML order.
+     */
+    public int $liCursor = 0;
 
     /** @var list<ListElement> */
     public array $list = [];
+
+    /**
+     * Precomputed mapping: li index => stack of list levels (ul/ol with starting numbers).
+     *
+     * @var array<int, list<array{name:string,num:int}>>
+     */
     private array $listStructure;
 
-    public function __construct(
-        string $html,
-        private readonly bool $googleDoc,
-    ) {
-        $this->liCursor = 0;
+    public function __construct(string $html, private readonly Config $config)
+    {
         $this->listStructure = $this->getListStructure($html);
     }
 
     public function ensureListStackForCurrentListItem(): void
     {
         ++$this->liCursor;
-
         if (!\array_key_exists($this->liCursor, $this->listStructure)) {
             return;
         }
-
-        $targetStack = $this->listStructure[$this->liCursor];
-        $this->alignListStack($targetStack);
+        $this->alignListStack($this->listStructure[$this->liCursor]);
     }
 
     /**
@@ -41,11 +45,9 @@ class ListsStructure
     public function alignListStack(array $targetStack): void
     {
         $targetDepth = \count($targetStack);
-
         while (\count($this->list) > $targetDepth) {
             array_pop($this->list);
         }
-
         for ($i = 0; $i < $targetDepth; ++$i) {
             $target = $targetStack[$i];
             if (!\array_key_exists($i, $this->list) || $this->list[$i]->name !== $target['name']) {
@@ -71,7 +73,7 @@ class ListsStructure
 
         // Collect CSS style definitions to emulate Google Docs list style resolution
         $styleDef = [];
-        if ($this->googleDoc) {
+        if ($this->config->googleDoc) {
             if (preg_match_all('/<style[^>]*>(.*?)<\/style>/is', $html, $styleBlocks)) {
                 foreach ($styleBlocks[1] as $css) {
                     $styleDef = array_replace($styleDef, ParserUtilities::dumbCssParser($css));
@@ -104,13 +106,12 @@ class ListsStructure
                         }
                     }
                 }
-
                 continue;
             }
 
             if ('ol' === $tagName || 'ul' === $tagName) {
                 // For Google Docs, the actual list type can be encoded in inline styles or CSS classes
-                if ($this->googleDoc) {
+                if ($this->config->googleDoc) {
                     $style = [];
                     // Merge class-based styles from <style> blocks
                     if (preg_match('/class\s*=\s*(["\'])(.*?)\1/i', $attrString, $classMatch)) {

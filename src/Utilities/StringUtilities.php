@@ -70,12 +70,12 @@ final class StringUtilities
         }
 
         $wrapped = '';
-        $mask = \wordwrap($mask, $width, '#', $cut);
+        $mask = wordwrap($mask, $width, '#', $cut);
         $maskCursor = -1;
         $maskIndex = -1;
         $charIndex = 0;
 
-        while (false !== $maskCursor = \strpos($mask, '#', $maskCursor + 1)) {
+        while (false !== $maskCursor = strpos($mask, '#', $maskCursor + 1)) {
             for (++$maskIndex; $maskIndex < $maskCursor; ++$maskIndex) {
                 $wrapped .= $chars[$charIndex];
                 unset($chars[$charIndex], $charKinds[$charIndex]);
@@ -106,7 +106,7 @@ final class StringUtilities
      */
     private static function chunkToArray(string $line): array
     {
-        $chunks = \iterator_to_array(u($line)->chunk(), false);
+        $chunks = iterator_to_array(u($line)->chunk(), false);
         $characters = [];
 
         foreach ($chunks as $chunk) {
@@ -130,11 +130,11 @@ final class StringUtilities
             return false;
         }
 
-        if (1 !== \preg_match('/[\p{L}\p{N}]/u', $previous)) {
+        if (1 !== preg_match('/[\p{L}\p{N}]/u', $previous)) {
             return false;
         }
 
-        if (1 !== \preg_match('/[\p{L}\p{N}]/u', $next)) {
+        if (1 !== preg_match('/[\p{L}\p{N}]/u', $next)) {
             return false;
         }
 

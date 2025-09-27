@@ -46,6 +46,7 @@ class TagProcessor
         private HTML2Markdown $HTML2Markdown,
         private TrProcessor $trProcessor,
         private AnchorProcessor $anchorProcessor,
+        private ListProcessor $listProcessor,
     ) {
     }
 
@@ -386,7 +387,7 @@ class TagProcessor
         }
         if (\in_array($tag, ['ol', 'ul'], true)) {
             // Google Docs create sub lists as top level lists
-            if (!$this->HTML2Markdown->getListsStructure()->list && !$this->lastWasList) {
+            if (!$this->listProcessor->list && !$this->lastWasList) {
                 $this->data->initializePrettyPrint();
             }
             if ($start) {
@@ -396,11 +397,11 @@ class TagProcessor
                     $listStyle = $tag;
                 }
                 $numberingStart = ParserUtilities::listNumberingStart($attrs);
-                $this->HTML2Markdown->getListsStructure()->list[] = new ListElement($listStyle, $numberingStart);
+                $this->listProcessor->list[] = new ListElement($listStyle, $numberingStart);
             } else {
-                if ($this->HTML2Markdown->getListsStructure()->list) {
-                    array_pop($this->HTML2Markdown->getListsStructure()->list);
-                    if (!$this->config->googleDoc && !$this->HTML2Markdown->getListsStructure()->list) {
+                if ($this->listProcessor->list) {
+                    array_pop($this->listProcessor->list);
+                    if (!$this->config->googleDoc && !$this->listProcessor->list) {
                         $this->data->appendFormattedData("\n");
                     }
                 }
@@ -411,13 +412,13 @@ class TagProcessor
         }
         if ('li' === $tag) {
             if ($start) {
-                $this->HTML2Markdown->getListsStructure()->ensureListStackForCurrentListItem();
+                $this->listProcessor->ensureListStackForCurrentListItem();
             }
             $this->data->listCodeIndent = '';
             $this->data->pbr();
             if ($start) {
-                if ($this->HTML2Markdown->getListsStructure()->list) {
-                    $li = $this->HTML2Markdown->getListsStructure()->list[array_key_last($this->HTML2Markdown->getListsStructure()->list)];
+                if ($this->listProcessor->list) {
+                    $li = $this->listProcessor->list[array_key_last($this->listProcessor->list)];
                 } else {
                     $li = new ListElement('ul', 0);
                 }
@@ -425,7 +426,7 @@ class TagProcessor
                     $this->data->appendFormattedData(str_repeat('  ', ParserUtilities::googleNestCount($this->tagStyle, $this->config->googleListIndent)));
                 } else {
                     $parentList = null;
-                    foreach ($this->HTML2Markdown->getListsStructure()->list as $listElement) {
+                    foreach ($this->listProcessor->list as $listElement) {
                         $this->data->listCodeIndent .= ('ol' === $parentList) ? '   ' : '  ';
                         $parentList = $listElement->name;
                     }
