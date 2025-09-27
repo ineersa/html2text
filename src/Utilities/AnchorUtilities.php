@@ -8,7 +8,9 @@ final class AnchorUtilities
 {
     /**
      * Compute anchor nesting depth information from the original HTML source.
+     *
      * @param non-empty-string $html
+     *
      * @return array{0: list<int>, 1: list<int>, 2: list<array{text: non-empty-string, depth: int}>}
      */
     public static function compute(string $html): array

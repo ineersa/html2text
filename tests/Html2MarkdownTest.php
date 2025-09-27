@@ -20,6 +20,12 @@ final class Html2MarkdownTest extends TestCase
 
         $expected = self::getBaseline($filename);
         $html = self::cleanupEol((string) file_get_contents($filename));
+        if (str_contains(strtolower(basename($filename)), 'url_utilities_coverage_invalid_base')) {
+            $this->expectException(\LogicException::class);
+            $converter->convert($html);
+
+            return;
+        }
         $actual = $converter->convert($html);
 
         $this->assertIsString($actual);
@@ -33,6 +39,12 @@ final class Html2MarkdownTest extends TestCase
         $converter = new HTML2Markdown($config);
 
         $html = self::cleanupEol((string) file_get_contents($filename));
+        if (str_contains(strtolower(basename($filename)), 'url_utilities_coverage_invalid_base')) {
+            $this->expectException(\LogicException::class);
+            $converter($html);
+
+            return;
+        }
         $actual = $converter($html);
         $expected = self::getBaseline($filename);
 
@@ -240,6 +252,22 @@ final class Html2MarkdownTest extends TestCase
             $module['baseurl'] = 'http://user:pass@example.com:8080/dir/sub/';
             $function = [
                 'baseurl' => 'http://user:pass@example.com:8080/dir/sub/',
+            ];
+        }
+
+        if (str_starts_with($base, 'url_utilities_coverage_frag')) {
+            $module['baseurl'] = 'http://example.com/dir';
+            $module['skipInternalLinks'] = false;
+            $function = [
+                'baseurl' => 'http://example.com/dir',
+                'skipInternalLinks' => false,
+            ];
+        }
+
+        if (str_starts_with($base, 'url_utilities_coverage_invalid_base')) {
+            $module['baseurl'] = '://bad base';
+            $function = [
+                'baseurl' => '://bad base',
             ];
         }
 

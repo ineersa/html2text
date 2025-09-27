@@ -1,0 +1,1 @@
+[bad](rel/path)

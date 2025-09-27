@@ -19,8 +19,9 @@ class UrlUtilities
         }
 
         $baseParts = parse_url($base);
-        if (false === $baseParts) {
-            return $link;
+
+        if (!\is_array($baseParts) || (!isset($baseParts['scheme']) && !isset($baseParts['host']))) {
+            throw new \LogicException('Invalid base URL');
         }
 
         if ('#' === $link[0]) {

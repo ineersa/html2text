@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+  <title>URL Utilities Coverage (frag and relative)</title>
+</head>
+<body>
+  <p>
+    <!-- Fragment-only should join to base (skipInternalLinks overridden to false) -->
+    <a href="#frag">frag</a>
+  </p>
+  <p>
+    <!-- Relative with fragment should extract and append fragment -->
+    <a href="file.txt#part">filefrag</a>
+  </p>
+  <p>
+    <!-- Relative with query should extract and append query -->
+    <a href="file.txt?p=1">fileq</a>
+  </p>
+</body>
+</html>

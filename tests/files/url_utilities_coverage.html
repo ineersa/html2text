@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <base href="http://user:pass@example.com:8080/dir/sub/">
+  <title>URL Utilities Coverage</title>
+</head>
+<body>
+  <p>
+    <!-- Fragment only should reuse base without fragment -->
+    <a href="#frag">frag</a>
+  </p>
+  <p>
+    <!-- Query only should append to current path -->
+    <a href="?q=1">query</a>
+  </p>
+  <p>
+    <!-- Protocol-relative should reuse scheme from base -->
+    <a href="//cdn.example.com/lib.js">cdn</a>
+  </p>
+  <p>
+    <!-- Absolute path should normalize -->
+    <a href="/a/b/../c/./">abs</a>
+  </p>
+  <p>
+    <!-- Relative path navigating up should normalize -->
+    <a href="../up/level/..//file.txt">rel</a>
+  </p>
+  <p>
+    <!-- Empty link should return base -->
+    <a href="">empty</a>
+  </p>
+  <p>
+    <!-- Full URL should remain as-is and not join -->
+    <a href="https://other.org/x">full</a>
+  </p>
+</body>
+</html>
