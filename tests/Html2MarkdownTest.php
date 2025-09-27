@@ -236,6 +236,13 @@ final class Html2MarkdownTest extends TestCase
             ];
         }
 
+        if (str_starts_with($base, 'url_utilities_coverage')) {
+            $module['baseurl'] = 'http://user:pass@example.com:8080/dir/sub/';
+            $function = [
+                'baseurl' => 'http://user:pass@example.com:8080/dir/sub/',
+            ];
+        }
+
         if (\in_array($base, ['sup_tag.html', 'sub_tag.html'], true)) {
             $module['includeSupSub'] = true;
             $function = null;

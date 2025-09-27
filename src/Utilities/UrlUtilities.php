@@ -65,7 +65,7 @@ class UrlUtilities
                 $basePath = '/';
             }
             $dir = $basePath;
-            if ('/' !== substr($dir, -1)) {
+            if (!str_ends_with($dir, '/')) {
                 $lastSlash = strrpos($dir, '/');
                 if (false !== $lastSlash) {
                     $dir = substr($dir, 0, $lastSlash + 1);
@@ -103,9 +103,7 @@ class UrlUtilities
         if ($leadingSlash) {
             $normalized = '/'.$normalized;
         }
-        if ('' === $normalized) {
-            $normalized = $leadingSlash ? '/' : '';
-        } elseif ($trailingSlash && '/' !== $normalized) {
+        if ($trailingSlash && '/' !== $normalized) {
             $normalized .= '/';
         }
 

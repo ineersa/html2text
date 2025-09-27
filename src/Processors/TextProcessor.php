@@ -63,12 +63,13 @@ class TextProcessor
 
         while (preg_match($pattern, $value, $matches, \PREG_OFFSET_CAPTURE, $offset)) {
             [$placeholder, $position] = $matches[0];
+            $position = (int) $position;
             if ($position > $offset) {
                 $result .= substr($value, $offset, $position - $offset);
             }
 
             $result .= $this->convertPlaceholder($matches[1][0], $matches[2][0]);
-            $offset = $position.\strlen($placeholder);
+            $offset = $position + \strlen($placeholder);
         }
 
         if ($offset < $length) {
