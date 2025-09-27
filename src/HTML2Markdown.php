@@ -18,7 +18,6 @@ class HTML2Markdown
     private ListsStructure $listsStructure;
     private TagProcessor $tagProcessor;
     private WrapProcessor $wrapProcessor;
-    private TrProcessor $trProcessor;
 
     public function __construct(
         private readonly Config $config,
@@ -37,8 +36,7 @@ class HTML2Markdown
             return '';
         }
 
-        $trProcessor = new TrProcessor($html);
-        $this->initProcessors($trProcessor);
+        $this->initProcessors($html);
         $processedHtml = $this->preprocessEntities($html);
         $this->document = $this->loadDocument($processedHtml);
         $this->listsStructure = new ListsStructure($html, $this->config->googleDoc);
@@ -82,12 +80,12 @@ class HTML2Markdown
         return str_replace('&nbsp_place_holder;', $nbsp, $outputText);
     }
 
-    protected function initProcessors(TrProcessor $trProcessor): void
+    protected function initProcessors(string $html): void
     {
         $this->data = new DataContainer($this->config);
         $this->textProcessor = new TextProcessor($this->config, $this->data);
-        $this->trProcessor = $trProcessor;
-        $this->tagProcessor = new TagProcessor($this->config, $this->data, $this, $this->trProcessor);
+        $trProcessor = new TrProcessor($html);
+        $this->tagProcessor = new TagProcessor($this->config, $this->data, $this, $trProcessor);
         $this->wrapProcessor = new WrapProcessor($this->config);
     }
 

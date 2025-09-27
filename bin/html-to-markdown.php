@@ -16,7 +16,7 @@ if (!is_file($source)) {
 }
 $html = (string) file_get_contents($source);
 
-$config = new Ineersa\PhpHtml2text\Config();
+$config = new Ineersa\PhpHtml2text\Config(protectLinks: true);
 $html2Markdown = new Ineersa\PhpHtml2text\HTML2Markdown($config);
 $markdown = $html2Markdown($html);
 

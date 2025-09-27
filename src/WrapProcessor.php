@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text;
 
-use function Symfony\Component\String\u;
-
 class WrapProcessor
 {
     public function __construct(
@@ -102,7 +100,7 @@ class WrapProcessor
         }
 
         $hasExplicitLineBreak = str_ends_with($text, '  ');
-        $wrapped = u($text)->wordwrap($width, "\n", false)->toString();
+        $wrapped = StringUtilities::wordwrap($text, $width, "\n", false);
         $lines = explode("\n", $wrapped);
         foreach ($lines as $index => $line) {
             $lines[$index] = rtrim($line, " \t");
