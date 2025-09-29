@@ -1,60 +1,81 @@
 name: CI
 
 on:
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
-    cs-fixer:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-            - name: Setup PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: '8.4'
-                  extensions: :opcache
-            - name: Install dependencies
-              run: composer install
-            - name: Run cs-fixer
-              run: vendor/bin/php-cs-fixer fix --dry-run --config=.php-cs-fixer.dist.php
+  cs-fixer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    phpstan:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-            - name: Setup PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: '8.4'
-                  extensions: libxml,dom
-            - name: Install dependencies
-              run: composer install
-            - name: Run phpstan
-              run: vendor/bin/phpstan analyse -c phpstan.dist.neon
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: opcache
 
-    tests:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-            - name: Setup PHP
-              uses: shivammathur/setup-php@v2
-              with:
-                  php-version: '8.4'
-                  extensions: libxml,dom,xdebug
-            - name: Install dependencies
-              run: composer install
-            - name: Run phpunit tests with code coverage
-              run: XDEBUG_MODE=coverage vendor/bin/phpunit --colors=always --testdox --coverage-text --coverage-html coverage/ --coverage-clover coverage/clover.xml
-            - name: Upload coverage report
-              uses: actions/upload-artifact@v4
-              with:
-                  name: coverage
-                  path: coverage
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run cs-fixer
+        run: vendor/bin/php-cs-fixer fix --dry-run --config=.php-cs-fixer.dist.php
+
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: libxml, dom
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run phpstan
+        run: vendor/bin/phpstan analyse -c phpstan.dist.neon
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: libxml, dom, xdebug
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run phpunit tests with code coverage
+        run: |
+          XDEBUG_MODE=coverage vendor/bin/phpunit \
+            --colors=always --testdox \
+            --coverage-text \
+            --coverage-html coverage/ \
+            --coverage-clover coverage/clover.xml
+
+      - name: Upload coverage artifact (HTML)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/clover.xml
+          flags: phpunit
+          fail_ci_if_error: true
+

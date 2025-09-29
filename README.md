@@ -1,4 +1,8 @@
-# html2text
+# PHP Html2Text
+
+[![CI](https://github.com/ineersa/php-html2text/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ineersa/php-html2text/actions/workflows/main.yml)
+[![codecov](https://codecov.io/gh/ineersa/php-html2text/branch/main/graph/badge.svg)](https://codecov.io/gh/ineersa/php-html2text)
+
 
 `html2text` converts a page of HTML into clean, easy-to-read plain ASCII text. Better yet, that ASCII also happens to be valid Markdown (a text-to-HTML format).
 
