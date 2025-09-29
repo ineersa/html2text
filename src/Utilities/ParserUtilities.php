@@ -469,6 +469,9 @@ final class ParserUtilities
         return implode("\n", $newLines);
     }
 
+    /**
+     * @param array<string, string|null> $style
+     */
     public static function googleNestCount(array $style, int $googleListIndent): int
     {
         /*

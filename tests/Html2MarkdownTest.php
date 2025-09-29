@@ -12,6 +12,9 @@ use PHPUnit\Framework\TestCase;
 
 final class Html2MarkdownTest extends TestCase
 {
+    /**
+     * @param array<string,mixed> $moduleArgs
+     */
     #[DataProvider('moduleCases')]
     public function testConvert(string $filename, array $moduleArgs): void
     {
@@ -28,10 +31,12 @@ final class Html2MarkdownTest extends TestCase
         }
         $actual = $converter->convert($html);
 
-        $this->assertIsString($actual);
         $this->assertSame(rtrim($expected), rtrim($actual));
     }
 
+    /**
+     * @param array<string,mixed> $functionArgs
+     */
     #[DataProvider('functionCases')]
     public function testInvoke(string $filename, array $functionArgs): void
     {
@@ -48,7 +53,6 @@ final class Html2MarkdownTest extends TestCase
         $actual = $converter($html);
         $expected = self::getBaseline($filename);
 
-        $this->assertIsString($actual);
         $this->assertSame(rtrim($expected), rtrim($actual));
     }
 
@@ -92,16 +96,25 @@ final class Html2MarkdownTest extends TestCase
         $this->assertSame("A B _C_.\n\n", $converter->convert('A <b>B</b> <i>C</i>.'));
     }
 
+    /**
+     * @return array<string,mixed>
+     */
     public static function moduleCases(): array
     {
         return self::collectTestData('module');
     }
 
+    /**
+     * @return array<string,mixed>
+     */
     public static function functionCases(): array
     {
         return self::collectTestData('function');
     }
 
+    /**
+     * @return array<string,mixed>
+     */
     private static function collectTestData(string $type): array
     {
         $cases = [];
@@ -298,6 +311,9 @@ final class Html2MarkdownTest extends TestCase
         return rtrim(self::cleanupEol($content));
     }
 
+    /**
+     * @param array<string,mixed> $options
+     */
     private static function createConfig(array $options): Config
     {
         $normalized = [];
@@ -308,9 +324,6 @@ final class Html2MarkdownTest extends TestCase
                 continue;
             }
             $normalizedKey = self::normalizeConfigKey($key);
-            if (null === $normalizedKey) {
-                continue;
-            }
             if (!isset($configParameters[$normalizedKey])) {
                 continue;
             }
@@ -320,7 +333,7 @@ final class Html2MarkdownTest extends TestCase
         return new Config(...$normalized);
     }
 
-    private static function normalizeConfigKey(string $key): ?string
+    private static function normalizeConfigKey(string $key): string
     {
         return match ($key) {
             'baseurl' => 'baseUrl',

@@ -18,7 +18,13 @@ class TagProcessor
     /** @var list<array{0:string|null,1:array<string, string|null>,2:array<string, string>}> */
     public array $tagStack = [];
 
+    /**
+     * @var array<string, string>
+     */
     public array $tagStyle = [];
+    /**
+     * @var array<string, string>
+     */
     public array $parentStyle = [];
 
     /** @var list<array<string, string|null>|null> */
@@ -43,13 +49,15 @@ class TagProcessor
     public function __construct(
         private Config $config,
         private DataContainer $data,
-        private HTML2Markdown $HTML2Markdown,
         private TrProcessor $trProcessor,
         private AnchorProcessor $anchorProcessor,
         private ListProcessor $listProcessor,
     ) {
     }
 
+    /**
+     * @param array<string, string|null> $attrs
+     */
     public function process(string $tag, array $attrs, bool $start): void
     {
         $this->data->currentTag = $tag;
@@ -559,6 +567,9 @@ class TagProcessor
         });
     }
 
+    /**
+     * @param array<string, string|null> $attrs
+     */
     private function handleAnchorStart(array $attrs): void
     {
         $this->anchorProcessor->pushStartDepth();
@@ -633,6 +644,9 @@ class TagProcessor
         $this->flushPendingAnchorClosures($closedDepth);
     }
 
+    /**
+     * @param array<string, string|null> $attrs
+     */
     private function finalizeAnchorClosure(array $attrs): void
     {
         if ($this->config->inlineLinks) {
@@ -667,6 +681,9 @@ class TagProcessor
         });
     }
 
+    /**
+     * @param array<string, string|null> $attrs
+     */
     private function previousIndex(array $attrs): ?int
     {
         /*

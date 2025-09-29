@@ -50,8 +50,8 @@ final class TrProcessor
         $tableStack = [];
         $currentTrIndex = 0;
         foreach ($matches as $match) {
-            $isClosing = '/' === ($match[1] ?? '');
-            $tagName = strtolower($match[2] ?? '');
+            $isClosing = '/' === $match[1];
+            $tagName = strtolower($match[2]);
 
             if ('table' === $tagName) {
                 if ($isClosing) {

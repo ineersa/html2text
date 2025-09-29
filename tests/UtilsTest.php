@@ -139,7 +139,7 @@ final class UtilsTest extends TestCase
     }
 
     /**
-     * @return list<array{0: string, 1: bool, 2: bool, 3: bool, 4: bool}>
+     * @return array<string, array{string, bool, bool, bool, bool}>
      */
     public static function provideSkipwrapSamples(): array
     {

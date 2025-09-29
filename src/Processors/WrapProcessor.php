@@ -110,7 +110,7 @@ class WrapProcessor
         foreach ($lines as $index => $line) {
             $lines[$index] = rtrim($line, " \t");
         }
-        if ($hasExplicitLineBreak && $lines) {
+        if ($hasExplicitLineBreak) {
             $last = array_key_last($lines);
             $lines[$last] .= '  ';
         }

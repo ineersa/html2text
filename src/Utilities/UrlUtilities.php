@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text\Utilities;
 
+use JetBrains\PhpStorm\ArrayShape;
+
 class UrlUtilities
 {
     public static function urlJoin(string $base, string $link): string
@@ -111,6 +113,9 @@ class UrlUtilities
         return $normalized;
     }
 
+    /**
+     * @param array{scheme?: string, host?: string, port?: int, user?: string, pass?: string, query?: string, path?: string, fragment?: string} $baseParts
+     */
     public static function buildUrl(array $baseParts, string $path): string
     {
         $scheme = $baseParts['scheme'] ?? '';

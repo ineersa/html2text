@@ -82,7 +82,6 @@ class HTML2Markdown
         $this->tagProcessor = new TagProcessor(
             $this->config,
             $this->data,
-            $this,
             $trProcessor,
             $anchorProcessor,
             $this->listsProcessor,

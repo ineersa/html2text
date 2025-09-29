@@ -304,6 +304,10 @@ class DataContainer
         $this->brToggle = '  ';
     }
 
+    /**
+     * @param array<string, string> $tagStyle
+     * @param array<string, string> $parentStyle
+     */
     public function addEmphasis(bool $start, array $tagStyle, array $parentStyle): void
     {
         /*
