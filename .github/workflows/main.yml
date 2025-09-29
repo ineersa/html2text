@@ -14,10 +14,11 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
-            - name: Set up PHP
-              uses: actions/setup-php@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.4'
+                  extensions: :opcache
             - name: Install dependencies
               run: composer install
             - name: Run cs-fixer
@@ -28,10 +29,11 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
-            - name: Set up PHP
-              uses: actions/setup-php@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.4'
+                  extensions: libxml,dom
             - name: Install dependencies
               run: composer install
             - name: Run phpstan
@@ -42,10 +44,11 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
-            - name: Set up PHP
-              uses: actions/setup-php@v3
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
               with:
                   php-version: '8.4'
+                  extensions: libxml,dom,xdebug
             - name: Install dependencies
               run: composer install
             - name: Run phpunit tests with code coverage
