@@ -19,7 +19,7 @@ PHP version required - 8.4+
 
 To install run composer command:
 ```bash
-composer install ineersa/php-html2text
+composer require ineersa/php-html2text
 ```
 
 ## Usage
