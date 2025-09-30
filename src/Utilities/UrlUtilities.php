@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text\Utilities;
 
-use JetBrains\PhpStorm\ArrayShape;
-
 class UrlUtilities
 {
     public static function urlJoin(string $base, string $link): string

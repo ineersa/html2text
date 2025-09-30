@@ -9,7 +9,6 @@ use Ineersa\PhpHtml2text\Constants;
 use Ineersa\PhpHtml2text\DataContainer;
 use Ineersa\PhpHtml2text\Elements\AnchorElement;
 use Ineersa\PhpHtml2text\Elements\ListElement;
-use Ineersa\PhpHtml2text\HTML2Markdown;
 use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
 use Ineersa\PhpHtml2text\Utilities\UrlUtilities;
 
