@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Ineersa\PhpHtml2text;
 
-/**
- * Repository configuration mirroring default values in the Python reference.
- */
 final readonly class Config
 {
     public function __construct(
@@ -37,8 +34,9 @@ final readonly class Config
         /** Pixels Google uses to indent nested lists. */
         public int $googleListIndent = 36,
         /**
+         * Values that indicate bold text in inline styles.
+         *
          * @var string[]
-         *               Values that indicate bold text in inline styles
          */
         public array $boldTextStyleValues = ['bold', '700', '800', '900'],
         /** Ignore anchor tags entirely. */
@@ -79,9 +77,11 @@ final readonly class Config
         public bool $includeSupSub = false,
         /** baseUrl to join with URLs if needed */
         public string $baseUrl = '',
+        /** Emphasis marks */
         public string $ulItemMark = '*',
         public string $emphasisMark = '_',
         public string $strongMark = '**',
+        /** hide strikethrough emphasis */
         public bool $hideStrikethrough = false,
     ) {
     }
