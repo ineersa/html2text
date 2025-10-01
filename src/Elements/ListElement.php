@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text\Elements;
+namespace Ineersa\Html2text\Elements;
 
 final class ListElement
 {

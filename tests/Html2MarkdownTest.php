@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests;
 
-use Ineersa\PhpHtml2text\Config;
-use Ineersa\PhpHtml2text\HTML2Markdown;
-use Ineersa\PhpHtml2text\Processors\TagProcessor;
+use Ineersa\Html2text\Config;
+use Ineersa\Html2text\HTML2Markdown;
+use Ineersa\Html2text\Processors\TagProcessor;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

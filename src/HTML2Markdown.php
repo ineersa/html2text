@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\Html2text;
 
 use Dom\HTMLDocument;
 use Dom\HTMLElement;
 use Dom\Node;
-use Ineersa\PhpHtml2text\Processors\AnchorProcessor;
-use Ineersa\PhpHtml2text\Processors\ListProcessor;
-use Ineersa\PhpHtml2text\Processors\TagProcessor;
-use Ineersa\PhpHtml2text\Processors\TextProcessor;
-use Ineersa\PhpHtml2text\Processors\TrProcessor;
-use Ineersa\PhpHtml2text\Processors\WrapProcessor;
+use Ineersa\Html2text\Processors\AnchorProcessor;
+use Ineersa\Html2text\Processors\ListProcessor;
+use Ineersa\Html2text\Processors\TagProcessor;
+use Ineersa\Html2text\Processors\TextProcessor;
+use Ineersa\Html2text\Processors\TrProcessor;
+use Ineersa\Html2text\Processors\WrapProcessor;
 
 class HTML2Markdown
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text\Utilities;
+namespace Ineersa\Html2text\Utilities;
 
-use Ineersa\PhpHtml2text\Constants;
+use Ineersa\Html2text\Constants;
 
 final class ParserUtilities
 {

@@ -38,7 +38,7 @@ Project goal is to migrate python library `html2text` to PHP while preserving fe
 ## Coding Standards & Workflow
 - All PHP files must start with `declare(strict_types=1);` and follow the configured PHP-CS-Fixer (PSR-12 + Symfony rules). Indentation is 4 spaces with LF line endings per `.editorconfig`.
 - Maintain class/member ordering expected by the fixer (traits, constants, properties, constructor, public methods, protected, private).
-- Namespace classes under `Ineersa\PhpHtml2text\…` mirroring the directory layout; tests live under the `Tests` namespace with filenames ending in `Test.php`.
+- Namespace classes under `Ineersa\Html2text\…` mirroring the directory layout; tests live under the `Tests` namespace with filenames ending in `Test.php`.
 - Before raising a PR, ensure CS, tests, and PHPStan pass locally. Document non-trivial manual verification in the PR description and avoid committing generated artefacts (e.g. `vendor/`, `coverage/`).
 
 ## Review & PR Expectations

@@ -29,8 +29,8 @@ Basic usage:
 ```php
 $html = (string) file_get_contents($source);
 
-$config = new Ineersa\PhpHtml2text\Config();
-$html2Markdown = new Ineersa\PhpHtml2text\HTML2Markdown($config);
+$config = new Ineersa\Html2text\Config();
+$html2Markdown = new Ineersa\Html2text\HTML2Markdown($config);
 $markdown = $html2Markdown($html);
 ```
 

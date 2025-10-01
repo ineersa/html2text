@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests;
 
-use Ineersa\PhpHtml2text\Constants;
-use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\Html2text\Constants;
+use Ineersa\Html2text\Utilities\ParserUtilities;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

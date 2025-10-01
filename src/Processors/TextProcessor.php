@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text\Processors;
+namespace Ineersa\Html2text\Processors;
 
-use Ineersa\PhpHtml2text\Config;
-use Ineersa\PhpHtml2text\Constants;
-use Ineersa\PhpHtml2text\DataContainer;
-use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\Html2text\Config;
+use Ineersa\Html2text\Constants;
+use Ineersa\Html2text\DataContainer;
+use Ineersa\Html2text\Utilities\ParserUtilities;
 
 class TextProcessor
 {

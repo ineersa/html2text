@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text\Processors;
+namespace Ineersa\Html2text\Processors;
 
-use Ineersa\PhpHtml2text\Config;
-use Ineersa\PhpHtml2text\Elements\ListElement;
-use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
+use Ineersa\Html2text\Config;
+use Ineersa\Html2text\Elements\ListElement;
+use Ineersa\Html2text\Utilities\ParserUtilities;
 
 class ListProcessor
 {

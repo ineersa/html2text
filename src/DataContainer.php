@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Ineersa\PhpHtml2text;
+namespace Ineersa\Html2text;
 
-use Ineersa\PhpHtml2text\Elements\AnchorElement;
-use Ineersa\PhpHtml2text\Elements\ListElement;
-use Ineersa\PhpHtml2text\Utilities\ParserUtilities;
-use Ineersa\PhpHtml2text\Utilities\UrlUtilities;
+use Ineersa\Html2text\Elements\AnchorElement;
+use Ineersa\Html2text\Elements\ListElement;
+use Ineersa\Html2text\Utilities\ParserUtilities;
+use Ineersa\Html2text\Utilities\UrlUtilities;
 
 class DataContainer
 {
